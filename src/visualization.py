@@ -171,7 +171,7 @@ def _draw_module_a(draw: ImageDraw.ImageDraw, date_str: str, theme: str) -> None
 
     y_top = _y(0.05)
     draw.text((LEFT_MARGIN, y_top), _format_date(date_str), fill=TEXT_DARK, font=date_font)
-    draw.text((LEFT_MARGIN, y_top + 44), "THE ENERGY BITE", fill=TEXT_MID, font=brand_font)
+    draw.text((LEFT_MARGIN, y_top + 44), "THE MINIMALIST HEALING 日志", fill=TEXT_MID, font=brand_font)
 
     theme_lines = _wrap_by_width(draw, theme, theme_font, max_width=360)
     theme_y = y_top + 4

@@ -1,4 +1,4 @@
-"""Evening review — Energy Bite 4.0."""
+"""晚间回顾 — 简愈一人食 V4.0."""
 
 from __future__ import annotations
 
@@ -16,8 +16,20 @@ from src.database import (
 )
 from src.theme import ACCENT, page_title, section_title
 
-PREP_EASE_CAPTION = "1:极度匆忙 | 2:略显局促 | 3:按部就班 | 4:有序从容 | 5:优雅享受"
-NPS_LABELS = {1: "1 极不赞成", 2: "2", 3: "3", 4: "4", 5: "5 极度赞成"}
+OPERATION_LABELS = {
+    1: "1 极其匆忙",
+    2: "2",
+    3: "3",
+    4: "4",
+    5: "5 优雅享受",
+}
+NPS_LABELS = {
+    1: "1 极不赞成",
+    2: "2",
+    3: "3",
+    4: "4",
+    5: "5 极度赞成",
+}
 
 
 def _inject_review_card_css() -> None:
@@ -44,16 +56,12 @@ def _inject_review_card_css() -> None:
             color: #64748B;
             margin: 0.15rem 0 0.5rem;
         }}
-        .eb-prep-label {{
+        .eb-score-label {{
             font-family: 'Noto Serif SC', serif;
             font-size: 0.92rem;
             font-weight: 600;
             color: #1E293B;
             margin: 0.35rem 0 0.15rem;
-        }}
-        .eb-prep-label i {{
-            color: {ACCENT};
-            margin-right: 0.35rem;
         }}
         .eb-ritual {{
             text-align: center;
@@ -72,17 +80,17 @@ def render() -> None:
     init_database()
     _inject_review_card_css()
 
-    page_title("fa-leaf", "晚间回顾", "先回顾每一餐，再回望全天状态。")
+    page_title("fa-leaf", "晚间回顾", "逐道回顾今日餐食，再回望全天身心状态。")
 
     if not st.session_state.get("menu_locked") or not st.session_state.get("final_daily_list"):
-        st.warning("请先前往【晨间餐饮】开启今日计划。")
+        st.warning("请先前往【晨间餐饮】确认今日计划，再回来回顾。")
         return
 
     menu_ids: list[str] = list(st.session_state.final_daily_list)
     morning = st.session_state.get("morning_inputs", {})
     today = st.session_state.get("today_date", date.today().isoformat())
 
-    section_title("fa-utensils", "模块一 · 今日餐食评价")
+    section_title("fa-utensils", "今日餐食评价")
 
     for menu_id in menu_ids:
         menu_row = get_menu_by_id(menu_id)
@@ -96,22 +104,20 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
 
-            st.markdown(
-                '<p class="eb-prep-label">'
-                '<i class="fa-solid fa-feather-pointed"></i> A. 操作从容度 (Prep Ease)</p>',
-                unsafe_allow_html=True,
-            )
-            st.caption(PREP_EASE_CAPTION)
+            st.markdown('<p class="eb-score-label">操作从容度</p>', unsafe_allow_html=True)
+            st.caption("1极其匆忙 → 5优雅享受")
             st.radio(
                 "操作从容度",
                 options=[1, 2, 3, 4, 5],
                 horizontal=True,
+                format_func=lambda x: OPERATION_LABELS[x],
                 label_visibility="collapsed",
                 key=f"review_{menu_id}_operation",
                 index=2,
             )
 
-            st.markdown("**B. 这道菜我还想再吃一次**")
+            st.markdown('<p class="eb-score-label">这道菜我还想再吃一次</p>', unsafe_allow_html=True)
+            st.caption("1极不赞成 → 5极度赞成")
             st.radio(
                 "NPS意愿",
                 options=[1, 2, 3, 4, 5],
@@ -126,11 +132,11 @@ def render() -> None:
 
     st.checkbox("🌟 收藏今日整套全天菜单", key="review_fav_full_day")
 
-    section_title("fa-heart-pulse", "模块二 · 全天个人状态")
+    section_title("fa-heart-pulse", "全天个人状态")
 
-    st.markdown("**今日情绪状态**")
+    st.markdown("**情绪状态**")
     day_mood = st.radio(
-        "今日情绪",
+        "情绪状态",
         options=[1, 2, 3, 4, 5],
         horizontal=True,
         label_visibility="collapsed",
@@ -138,17 +144,15 @@ def render() -> None:
         index=2,
     )
 
-    st.markdown("**今日精力水平**")
+    st.markdown("**精力水平**")
     day_energy = st.radio(
-        "今日精力",
+        "精力水平",
         options=[1, 2, 3, 4, 5],
         horizontal=True,
         label_visibility="collapsed",
         key="review_day_energy",
         index=2,
     )
-
-    section_title("fa-moon", "模块三 · 提交")
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
         log_ids: list[str] = []

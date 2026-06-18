@@ -127,7 +127,7 @@ def render_top_header(today: str, favorited_count: int) -> None:
     st.markdown(
         f"""
         <div class="eb-app-header">
-            <h1><i class="fa-solid fa-seedling"></i> 高能一人食</h1>
+            <h1 style="text-align: center; font-family: 'Noto Serif SC', serif; color: #1E293B;"><i class="fa-solid fa-seedling" style="color: #8DA399; margin-right: 15px;"></i>简愈一人食</h1>
             <p>今日 {today} · 收藏 {favorited_count} 道</p>
         </div>
         """,

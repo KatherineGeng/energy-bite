@@ -85,7 +85,7 @@ def _render_poster_tab() -> None:
 
 
 def _render_history_share_tab() -> None:
-    st.caption("从回顾历史中，分享效果最好的高能搭配。")
+    st.caption("从回顾历史中，分享效果最好的简愈搭配。")
 
     history = get_log_history_for_share()
     if history.empty:
@@ -142,7 +142,7 @@ def _render_favorites_tab() -> None:
 
 
 def _render_import_tab() -> None:
-    st.caption("粘贴朋友分享的高能口令，一键存入私人菜单库。")
+    st.caption("粘贴朋友分享的简愈口令，一键存入私人菜单库。")
 
     pasted = st.text_area(
         "粘贴分享口令",
