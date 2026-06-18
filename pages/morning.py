@@ -60,19 +60,23 @@ def render() -> None:
     if locked and st.session_state.get("final_daily_list"):
         st.success("今日就餐计划已确认 · 可前往「晚间回顾」。")
 
-    sleep = st.selectbox("昨晚睡眠状态", ["很好", "良好", "一般", "较差"], key="morning_sleep")
-    load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
-    meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
+    sleep_col, load_col, meal_col = st.columns(3)
+    with sleep_col:
+        sleep = st.selectbox("昨晚睡眠状态", ["很好", "良好", "一般", "较差"], key="morning_sleep")
+    with load_col:
+        load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
+    with meal_col:
+        meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
 
-    gen_col, shuffle_col = st.columns(2)
-    with gen_col:
+    col1, col2 = st.columns(2)
+    with col1:
         if st.button("生成菜单", type="primary", use_container_width=True, key="gen_menus", disabled=locked):
             recs = get_daily_menus(sleep, load, int(meal_count))
             st.session_state.morning_inputs = {"sleep": sleep, "load": load, "meal_count": int(meal_count)}
             _store_recommendations(recs)
             st.session_state.today_date = date.today().isoformat()
             st.rerun()
-    with shuffle_col:
+    with col2:
         if st.button("换一套", use_container_width=True, key="shuffle_menus", disabled=locked):
             morning = _get_morning_inputs()
             current = st.session_state.get("current_day_menus", [])

@@ -62,7 +62,7 @@ def _render_poster_tab() -> None:
             photos=photos,
         )
         st.session_state.poster_bytes = png_bytes
-        st.session_state.poster_filename = f"energy_bite_{date_str}.png"
+        st.session_state.poster_filename = f"jianyu_{date_str}.png"
         st.session_state.show_share_guide = False
 
     if st.session_state.get("poster_bytes"):
@@ -72,7 +72,7 @@ def _render_poster_tab() -> None:
             st.download_button(
                 "保存至本地",
                 data=st.session_state.poster_bytes,
-                file_name=st.session_state.get("poster_filename", "energy_bite_poster.png"),
+                file_name=st.session_state.get("poster_filename", "jianyu_poster.png"),
                 mime="image/png",
                 use_container_width=True,
                 key="download_poster",

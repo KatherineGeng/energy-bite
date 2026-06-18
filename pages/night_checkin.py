@@ -16,20 +16,9 @@ from src.database import (
 )
 from src.theme import ACCENT, page_title, section_title
 
-OPERATION_LABELS = {
-    1: "1 极其匆忙",
-    2: "2",
-    3: "3",
-    4: "4",
-    5: "5 优雅享受",
-}
-NPS_LABELS = {
-    1: "1 极不赞成",
-    2: "2",
-    3: "3",
-    4: "4",
-    5: "5 极度赞成",
-}
+SCORE_OPTIONS = [1, 2, 3, 4, 5]
+OPERATION_LABELS = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+NPS_LABELS = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
 
 
 def _inject_review_card_css() -> None:
@@ -104,11 +93,11 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
 
-            st.markdown('<p class="eb-score-label">操作从容度</p>', unsafe_allow_html=True)
+            st.markdown('<p class="eb-score-label">操作从容度 (1-5)</p>', unsafe_allow_html=True)
             st.caption("1极其匆忙 → 5优雅享受")
             st.radio(
                 "操作从容度",
-                options=[1, 2, 3, 4, 5],
+                options=SCORE_OPTIONS,
                 horizontal=True,
                 format_func=lambda x: OPERATION_LABELS[x],
                 label_visibility="collapsed",
@@ -116,11 +105,14 @@ def render() -> None:
                 index=2,
             )
 
-            st.markdown('<p class="eb-score-label">这道菜我还想再吃一次</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="eb-score-label">NPS意愿：这道菜我还想再吃一次 (1-5)</p>',
+                unsafe_allow_html=True,
+            )
             st.caption("1极不赞成 → 5极度赞成")
             st.radio(
                 "NPS意愿",
-                options=[1, 2, 3, 4, 5],
+                options=SCORE_OPTIONS,
                 horizontal=True,
                 format_func=lambda x: NPS_LABELS[x],
                 label_visibility="collapsed",
@@ -134,25 +126,27 @@ def render() -> None:
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    st.markdown("**情绪状态**")
-    day_mood = st.radio(
-        "情绪状态",
-        options=[1, 2, 3, 4, 5],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="review_day_mood",
-        index=2,
-    )
-
-    st.markdown("**精力水平**")
-    day_energy = st.radio(
-        "精力水平",
-        options=[1, 2, 3, 4, 5],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="review_day_energy",
-        index=2,
-    )
+    mood_col, energy_col = st.columns(2)
+    with mood_col:
+        st.markdown("**情绪状态 (1-5)**")
+        day_mood = st.radio(
+            "情绪状态",
+            options=SCORE_OPTIONS,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="review_day_mood",
+            index=2,
+        )
+    with energy_col:
+        st.markdown("**精力水平 (1-5)**")
+        day_energy = st.radio(
+            "精力水平",
+            options=SCORE_OPTIONS,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="review_day_energy",
+            index=2,
+        )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
         log_ids: list[str] = []

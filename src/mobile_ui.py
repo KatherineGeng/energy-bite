@@ -108,6 +108,25 @@ def inject_mobile_css() -> None:
         section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child button[kind="primary"]::before {{
             color: {ACCENT} !important;
         }}
+        /* 强制 radio 横向排列 */
+        div[data-testid="stRadio"] > div {{
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 0.15rem !important;
+        }}
+        div[data-testid="stRadio"] label {{
+            margin-right: 0.35rem !important;
+        }}
+        /* 底部导航按钮强制横排 */
+        [data-testid="stHorizontalBlock"] {{
+            flex-wrap: nowrap !important;
+        }}
+        [data-testid="column"] {{
+            min-width: 0 !important;
+        }}
+        .stButton > button {{
+            white-space: nowrap !important;
+        }}
         @media (max-width: 640px) {{
             .block-container {{
                 padding-left: 0.75rem !important;
@@ -125,12 +144,13 @@ def inject_mobile_css() -> None:
 
 def render_top_header(today: str, favorited_count: int) -> None:
     st.markdown(
-        f"""
-        <div class="eb-app-header">
-            <h1 style="text-align: center; font-family: 'Noto Serif SC', serif; color: #1E293B;"><i class="fa-solid fa-seedling" style="color: #8DA399; margin-right: 15px;"></i>简愈一人食</h1>
-            <p>今日 {today} · 收藏 {favorited_count} 道</p>
-        </div>
-        """,
+        "<h2 style='text-align: center; color: #1E293B; margin-bottom: 30px;'>"
+        "<i class='fa-solid fa-leaf' style='color: #8DA399;'></i> 简愈一人食</h2>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<p style='text-align:center;font-size:0.8rem;color:#64748B;margin-top:-1.2rem;margin-bottom:0.5rem;'>"
+        f"今日 {today} · 收藏 {favorited_count} 道</p>",
         unsafe_allow_html=True,
     )
 
@@ -139,8 +159,8 @@ def render_bottom_nav() -> None:
     if "current_page" not in st.session_state:
         st.session_state.current_page = "morning"
 
-    cols = st.columns(3, gap="small")
-    for col, (page_id, label) in zip(cols, NAV_ITEMS):
+    col1, col2, col3 = st.columns(3)
+    for col, (page_id, label) in zip((col1, col2, col3), NAV_ITEMS):
         with col:
             is_active = st.session_state.current_page == page_id
             if st.button(
