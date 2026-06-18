@@ -110,39 +110,32 @@ def render() -> None:
                 st.caption(f"{row['meal_type']} · {tags_str} · 营养覆盖 {coverage}")
                 st.write(f"食材：{ingredients}")
             else:
-                info_col, action_col = st.columns([5, 1])
-                with info_col:
-                    st.markdown(f"**{row['menu_name']}**")
-                    st.caption(
-                        f"{row['meal_type']} · {tags_str} · ⏱ {row['prep_minutes']} min · 营养覆盖 {coverage}"
-                    )
-                    st.write(f"食材：{ingredients}")
-                with action_col:
-                    if st.button(f"移除", key=f"remove_{menu_id}", use_container_width=True):
-                        _remove_menu(menu_id)
-                        st.rerun()
+                st.markdown(f"**{row['menu_name']}**")
+                st.caption(
+                    f"{row['meal_type']} · {tags_str} · ⏱ {row['prep_minutes']} min · 营养覆盖 {coverage}"
+                )
+                st.caption(f"食材：{ingredients}")
+                if st.button("移除", key=f"remove_{menu_id}", use_container_width=True):
+                    _remove_menu(menu_id)
+                    st.rerun()
 
     if not locked:
         available = all_menus[~all_menus["menu_id"].isin(menu_ids)] if not all_menus.empty else all_menus
         if not available.empty:
-            add_col, btn_col = st.columns([3, 1])
-            with add_col:
-                add_options = available["menu_id"].tolist()
-                add_labels = {
-                    r["menu_id"]: f"{r['menu_name']}（{r['meal_type']}）"
-                    for _, r in available.iterrows()
-                }
-                pick = st.selectbox(
-                    "从菜单库添加",
-                    add_options,
-                    format_func=lambda x: add_labels.get(x, x),
-                    key="add_menu_pick",
-                    label_visibility="collapsed",
-                )
-            with btn_col:
-                if st.button("加入", use_container_width=True, key="add_menu_btn"):
-                    _add_menu(pick)
-                    st.rerun()
+            add_options = available["menu_id"].tolist()
+            add_labels = {
+                r["menu_id"]: f"{r['menu_name']}（{r['meal_type']}）"
+                for _, r in available.iterrows()
+            }
+            pick = st.selectbox(
+                "从菜单库添加",
+                add_options,
+                format_func=lambda x: add_labels.get(x, x),
+                key="add_menu_pick",
+            )
+            if st.button("加入", use_container_width=True, key="add_menu_btn"):
+                _add_menu(pick)
+                st.rerun()
 
         if st.button("确认今日就餐计划", type="primary", use_container_width=True, key="confirm_plan"):
             st.session_state.final_daily_list = list(menu_ids)

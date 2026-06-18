@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import json
-from pathlib import Path
-
 import streamlit as st
 
 from src.constants import APP_VERSION
@@ -17,64 +13,37 @@ NAV_ITEMS = [
     ("export", "收藏分享"),
 ]
 
-_ROOT = Path(__file__).resolve().parent.parent
-_FAVICON = _ROOT / "favicon.png"
-if not _FAVICON.exists():
-    _FAVICON = _ROOT / "assets" / "favicon.png"
-_APPLE_TOUCH_ICON = _ROOT / "apple-touch-icon.png"
-if not _APPLE_TOUCH_ICON.exists():
-    _APPLE_TOUCH_ICON = _ROOT / "assets" / "apple-touch-icon.png"
-
-
-def _pwa_head_tags() -> str:
-    tags: list[str] = []
-    if _FAVICON.exists():
-        fav_b64 = base64.b64encode(_FAVICON.read_bytes()).decode("ascii")
-        tags.append(
-            f'<link rel="icon" type="image/png" sizes="32x32" '
-            f'href="data:image/png;base64,{fav_b64}">'
-        )
-    if _APPLE_TOUCH_ICON.exists():
-        touch_b64 = base64.b64encode(_APPLE_TOUCH_ICON.read_bytes()).decode("ascii")
-        tags.append(
-            f'<link rel="apple-touch-icon" sizes="180x180" '
-            f'href="data:image/png;base64,{touch_b64}">'
-        )
-        manifest = {
-            "name": "简愈一人食",
-            "short_name": "简愈一人食",
-            "icons": [
-                {
-                    "src": f"data:image/png;base64,{touch_b64}",
-                    "sizes": "180x180",
-                    "type": "image/png",
-                    "purpose": "any maskable",
-                }
-            ],
-            "display": "standalone",
-            "theme_color": "#8DA399",
-            "background_color": "#F9F8F6",
-        }
-        manifest_b64 = base64.b64encode(json.dumps(manifest, ensure_ascii=False).encode()).decode("ascii")
-        tags.append(f'<link rel="manifest" href="data:application/manifest+json;base64,{manifest_b64}">')
-    tags.append('<meta name="apple-mobile-web-app-title" content="简愈一人食">')
-    tags.append('<meta name="theme-color" content="#8DA399">')
-    return "".join(tags)
-
 
 def inject_mobile_css() -> None:
-    head_tags = _pwa_head_tags()
-    if head_tags:
-        st.markdown(head_tags, unsafe_allow_html=True)
-
     st.markdown(
         f"""
         <style>
-        html, body, .stApp {{
-            overflow-x: hidden !important;
-            max-width: 100vw !important;
+        *, *::before, *::after {{
+            box-sizing: border-box !important;
         }}
-        /* 隐藏 Streamlit 右下角默认浮动控件（皇冠/设置等） */
+        html {{
+            -webkit-text-size-adjust: 100%;
+        }}
+        html, body {{
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            overflow-x: clip !important;
+        }}
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"],
+        section.main,
+        section.main > div,
+        .block-container {{
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: clip !important;
+        }}
+        .stApp {{
+            overflow-x: clip !important;
+        }}
+        /* 隐藏 Streamlit 右下角浮动控件 */
         [data-testid="stToolbar"],
         [data-testid="stToolbarActions"],
         [data-testid="stAppDeployButton"],
@@ -89,34 +58,30 @@ def inject_mobile_css() -> None:
         [data-testid="baseButton-header"] {{
             display: none !important;
             visibility: hidden !important;
-            opacity: 0 !important;
             pointer-events: none !important;
         }}
         [data-testid="stSidebar"],
         [data-testid="stSidebarCollapsedControl"],
-        [data-testid="collapsedControl"] {{
-            display: none !important;
-        }}
-        header[data-testid="stHeader"] {{
-            display: none !important;
-        }}
+        [data-testid="collapsedControl"],
+        header[data-testid="stHeader"],
         footer {{
-            visibility: hidden !important;
             display: none !important;
-        }}
-        section.main {{
-            overflow-x: hidden !important;
         }}
         .block-container {{
-            padding-top: 0.35rem !important;
-            padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-            max-width: 100% !important;
-            width: 100% !important;
+            padding-top: 0.25rem !important;
+            padding-bottom: calc(4.8rem + env(safe-area-inset-bottom)) !important;
+            padding-left: max(0.75rem, env(safe-area-inset-left)) !important;
+            padding-right: max(0.75rem, env(safe-area-inset-right)) !important;
         }}
-        /* 强制 st.columns 横排（覆盖 Streamlit 手机端竖排） */
-        div[data-testid="stHorizontalBlock"] {{
+        /* 长文本换行，避免撑破屏幕 */
+        p, span, label, .stMarkdown, [data-testid="stMarkdownContainer"] {{
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+        }}
+        /* 仅对「双键操作行」和「底部导航行」强制横排 */
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="生成菜单"]),
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]),
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="加入"]) {{
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -124,63 +89,66 @@ def inject_mobile_css() -> None:
             max-width: 100% !important;
             gap: 0.35rem !important;
         }}
-        div[data-testid="column"] {{
-            flex: 1 1 0% !important;
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="生成菜单"]) [data-testid="column"],
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) [data-testid="column"],
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="加入"]) [data-testid="column"] {{
+            flex: 1 1 0 !important;
             min-width: 0 !important;
-            width: auto !important;
+            width: 0 !important;
         }}
         .stButton > button {{
             width: 100% !important;
             max-width: 100% !important;
-            white-space: nowrap !important;
             font-size: 0.78rem !important;
-            padding: 0.4rem 0.25rem !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+            padding: 0.42rem 0.2rem !important;
+            white-space: normal !important;
+            line-height: 1.15 !important;
         }}
-        div[data-testid="stSelectbox"] {{
+        div[data-testid="stSelectbox"],
+        div[data-testid="stSelectbox"] > div {{
             width: 100% !important;
             max-width: 100% !important;
         }}
         div[data-testid="stRadio"] > div {{
-            display: flex !important;
-            flex-direction: row !important;
             flex-wrap: wrap !important;
-            gap: 0.15rem !important;
-            width: 100% !important;
+            gap: 0.2rem !important;
         }}
-        /* 底部导航：含三个 Tab 按钮的横排块固定于底部 */
-        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) {{
+        /* 底部导航固定 + 去掉文档流占位，防止横向溢出 */
+        div[data-testid="element-container"]:has(button[aria-label="晨间餐饮"]) {{
             position: fixed !important;
-            bottom: 0 !important;
             left: 0 !important;
             right: 0 !important;
+            bottom: 0 !important;
             z-index: 999999 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0.35rem max(0.75rem, env(safe-area-inset-left)) calc(0.4rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-right)) !important;
             background: rgba(249, 248, 246, 0.98) !important;
             border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
-            padding: 0.4rem 0.6rem calc(0.45rem + env(safe-area-inset-bottom)) !important;
-            box-shadow: 0 -4px 18px rgba(30, 41, 59, 0.06) !important;
-            max-width: 100vw !important;
+            box-shadow: 0 -4px 16px rgba(30, 41, 59, 0.06) !important;
+        }}
+        div[data-testid="element-container"]:has(button[aria-label="晨间餐饮"]) [data-testid="stHorizontalBlock"] {{
             margin: 0 !important;
+            padding: 0 !important;
         }}
-        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button {{
+        div[data-testid="element-container"]:has(button[aria-label="晨间餐饮"]) button {{
             border-radius: 10px !important;
-            min-height: 2.2rem !important;
-            font-size: 0.65rem !important;
+            min-height: 2.1rem !important;
+            font-size: 0.62rem !important;
         }}
-        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button[kind="secondary"] {{
-            background: rgba(255,255,255,0.6) !important;
+        div[data-testid="element-container"]:has(button[aria-label="晨间餐饮"]) button[kind="secondary"] {{
+            background: rgba(255,255,255,0.85) !important;
             color: {TEXT} !important;
-            border: 1px solid rgba(141, 163, 153, 0.2) !important;
+            border: 1px solid rgba(141, 163, 153, 0.25) !important;
         }}
-        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button[kind="primary"] {{
-            background: rgba(141, 163, 153, 0.18) !important;
+        div[data-testid="element-container"]:has(button[aria-label="晨间餐饮"]) button[kind="primary"] {{
+            background: rgba(141, 163, 153, 0.2) !important;
             color: {ACCENT} !important;
             border: 1px solid rgba(141, 163, 153, 0.45) !important;
             font-weight: 600 !important;
         }}
-        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button[kind="primary"]::before {{
+        div[data-testid="element-container"]:has(button[aria-label="晨间餐饮"]) button[kind="primary"]::before {{
             color: {ACCENT} !important;
         }}
         .eb-version-badge {{
@@ -188,14 +156,7 @@ def inject_mobile_css() -> None:
             font-size: 0.72rem;
             color: {ACCENT};
             font-weight: 700;
-            letter-spacing: 0.04em;
-            margin: -0.8rem 0 0.6rem;
-        }}
-        @media (max-width: 640px) {{
-            div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button {{
-                font-size: 0.6rem !important;
-                padding: 0.35rem 0.15rem !important;
-            }}
+            margin: -0.5rem 0 0.4rem;
         }}
         </style>
         """,
@@ -205,8 +166,8 @@ def inject_mobile_css() -> None:
 
 def render_top_header(today: str, favorited_count: int) -> None:
     st.markdown(
-        "<h2 style='text-align: center; color: #1E293B; margin-bottom: 30px;'>"
-        "<i class='fa-solid fa-leaf' style='color: #8DA399;'></i> 简愈一人食</h2>",
+        "<h2 style='text-align:center;color:#1E293B;margin:0 0 0.25rem;font-size:1.35rem;'>"
+        "<i class='fa-solid fa-leaf' style='color:#8DA399;'></i> 简愈一人食</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -214,7 +175,7 @@ def render_top_header(today: str, favorited_count: int) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        f"<p style='text-align:center;font-size:0.8rem;color:#64748B;margin-top:-0.4rem;margin-bottom:0.5rem;'>"
+        f"<p style='text-align:center;font-size:0.78rem;color:#64748B;margin:0 0 0.5rem;'>"
         f"今日 {today} · 收藏 {favorited_count} 道</p>",
         unsafe_allow_html=True,
     )

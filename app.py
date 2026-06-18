@@ -12,15 +12,18 @@ from pages import export_poster, morning, night_checkin
 from src.constants import APP_VERSION
 from src.database import count_favorited_menus, init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
+from src.pwa_head import inject_pwa_head
 from src.theme import inject_theme_assets
 
 st.set_page_config(
     page_title=f"简愈一人食 {APP_VERSION}",
-    page_icon="favicon.png",
+    page_icon="apple-touch-icon.png",
     layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
 init_database()
+inject_pwa_head()
 inject_theme_assets()
 inject_mobile_css()
 
