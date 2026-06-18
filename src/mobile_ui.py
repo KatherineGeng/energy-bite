@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 
 import streamlit as st
@@ -25,25 +26,46 @@ if not _APPLE_TOUCH_ICON.exists():
     _APPLE_TOUCH_ICON = _ROOT / "assets" / "apple-touch-icon.png"
 
 
-def _apple_touch_icon_tag() -> str:
-    tags = []
+def _pwa_head_tags() -> str:
+    tags: list[str] = []
     if _FAVICON.exists():
-        encoded = base64.b64encode(_FAVICON.read_bytes()).decode("ascii")
+        fav_b64 = base64.b64encode(_FAVICON.read_bytes()).decode("ascii")
         tags.append(
-            f'<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,{encoded}">'
+            f'<link rel="icon" type="image/png" sizes="32x32" '
+            f'href="data:image/png;base64,{fav_b64}">'
         )
     if _APPLE_TOUCH_ICON.exists():
-        encoded = base64.b64encode(_APPLE_TOUCH_ICON.read_bytes()).decode("ascii")
+        touch_b64 = base64.b64encode(_APPLE_TOUCH_ICON.read_bytes()).decode("ascii")
         tags.append(
-            f'<link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,{encoded}">'
+            f'<link rel="apple-touch-icon" sizes="180x180" '
+            f'href="data:image/png;base64,{touch_b64}">'
         )
+        manifest = {
+            "name": "简愈一人食",
+            "short_name": "简愈一人食",
+            "icons": [
+                {
+                    "src": f"data:image/png;base64,{touch_b64}",
+                    "sizes": "180x180",
+                    "type": "image/png",
+                    "purpose": "any maskable",
+                }
+            ],
+            "display": "standalone",
+            "theme_color": "#8DA399",
+            "background_color": "#F9F8F6",
+        }
+        manifest_b64 = base64.b64encode(json.dumps(manifest, ensure_ascii=False).encode()).decode("ascii")
+        tags.append(f'<link rel="manifest" href="data:application/manifest+json;base64,{manifest_b64}">')
+    tags.append('<meta name="apple-mobile-web-app-title" content="简愈一人食">')
+    tags.append('<meta name="theme-color" content="#8DA399">')
     return "".join(tags)
 
 
 def inject_mobile_css() -> None:
-    icon_tags = _apple_touch_icon_tag()
-    if icon_tags:
-        st.markdown(icon_tags, unsafe_allow_html=True)
+    head_tags = _pwa_head_tags()
+    if head_tags:
+        st.markdown(head_tags, unsafe_allow_html=True)
 
     st.markdown(
         f"""
@@ -51,6 +73,24 @@ def inject_mobile_css() -> None:
         html, body, .stApp {{
             overflow-x: hidden !important;
             max-width: 100vw !important;
+        }}
+        /* 隐藏 Streamlit 右下角默认浮动控件（皇冠/设置等） */
+        [data-testid="stToolbar"],
+        [data-testid="stToolbarActions"],
+        [data-testid="stAppDeployButton"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stDecoration"],
+        [data-testid="stBottomBlockContainer"],
+        .stAppDeployButton,
+        #MainMenu,
+        .viewerBadge_container,
+        div[class*="viewerBadge"],
+        button[kind="header"],
+        [data-testid="baseButton-header"] {{
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
         }}
         [data-testid="stSidebar"],
         [data-testid="stSidebarCollapsedControl"],
@@ -62,6 +102,7 @@ def inject_mobile_css() -> None:
         }}
         footer {{
             visibility: hidden !important;
+            display: none !important;
         }}
         section.main {{
             overflow-x: hidden !important;
@@ -74,7 +115,7 @@ def inject_mobile_css() -> None:
             max-width: 100% !important;
             width: 100% !important;
         }}
-        /* 强制所有 st.columns 在手机上保持横排 */
+        /* 强制 st.columns 横排（覆盖 Streamlit 手机端竖排） */
         div[data-testid="stHorizontalBlock"] {{
             display: flex !important;
             flex-direction: row !important;
@@ -92,8 +133,11 @@ def inject_mobile_css() -> None:
             width: 100% !important;
             max-width: 100% !important;
             white-space: nowrap !important;
-            font-size: 0.82rem !important;
-            padding: 0.45rem 0.35rem !important;
+            font-size: 0.78rem !important;
+            padding: 0.4rem 0.25rem !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }}
         div[data-testid="stSelectbox"] {{
             width: 100% !important;
@@ -106,12 +150,8 @@ def inject_mobile_css() -> None:
             gap: 0.15rem !important;
             width: 100% !important;
         }}
-        div[data-testid="stRadio"] label {{
-            margin-right: 0.25rem !important;
-            font-size: 0.85rem !important;
-        }}
-        /* 底部导航固定栏（app.py 最后一个 block = st.radio 导航） */
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child {{
+        /* 底部导航：含三个 Tab 按钮的横排块固定于底部 */
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) {{
             position: fixed !important;
             bottom: 0 !important;
             left: 0 !important;
@@ -119,32 +159,29 @@ def inject_mobile_css() -> None:
             z-index: 999999 !important;
             background: rgba(249, 248, 246, 0.98) !important;
             border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
-            padding: 0.35rem 0.5rem calc(0.45rem + env(safe-area-inset-bottom)) !important;
+            padding: 0.4rem 0.6rem calc(0.45rem + env(safe-area-inset-bottom)) !important;
             box-shadow: 0 -4px 18px rgba(30, 41, 59, 0.06) !important;
             max-width: 100vw !important;
-        }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child div[data-testid="stRadio"] > div {{
-            flex-wrap: nowrap !important;
-            justify-content: space-between !important;
-        }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child div[data-testid="stRadio"] label {{
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
             margin: 0 !important;
-            padding: 0.35rem 0.15rem !important;
-            font-size: 0.68rem !important;
-            text-align: center !important;
-            justify-content: center !important;
-            background: rgba(255,255,255,0.6) !important;
-            border: 1px solid rgba(141, 163, 153, 0.2) !important;
-            border-radius: 10px !important;
-            color: {TEXT} !important;
         }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child div[data-testid="stRadio"] label:has(input:checked) {{
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button {{
+            border-radius: 10px !important;
+            min-height: 2.2rem !important;
+            font-size: 0.65rem !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button[kind="secondary"] {{
+            background: rgba(255,255,255,0.6) !important;
+            color: {TEXT} !important;
+            border: 1px solid rgba(141, 163, 153, 0.2) !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button[kind="primary"] {{
             background: rgba(141, 163, 153, 0.18) !important;
-            border-color: rgba(141, 163, 153, 0.45) !important;
             color: {ACCENT} !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
             font-weight: 600 !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button[kind="primary"]::before {{
+            color: {ACCENT} !important;
         }}
         .eb-version-badge {{
             text-align: center;
@@ -155,12 +192,9 @@ def inject_mobile_css() -> None:
             margin: -0.8rem 0 0.6rem;
         }}
         @media (max-width: 640px) {{
-            .stButton > button {{
-                font-size: 0.78rem !important;
-            }}
-            section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child div[data-testid="stRadio"] label {{
-                font-size: 0.62rem !important;
-                padding: 0.3rem 0.1rem !important;
+            div[data-testid="stHorizontalBlock"]:has(button[aria-label="晨间餐饮"]) button {{
+                font-size: 0.6rem !important;
+                padding: 0.35rem 0.15rem !important;
             }}
         }}
         </style>
@@ -190,21 +224,15 @@ def render_bottom_nav() -> None:
     if "current_page" not in st.session_state:
         st.session_state.current_page = "morning"
 
-    label_by_id = {page_id: label for page_id, label in NAV_ITEMS}
-    id_by_label = {label: page_id for page_id, label in NAV_ITEMS}
-    labels = [label for _, label in NAV_ITEMS]
-
-    current_id = st.session_state.current_page
-    st.session_state.eb_bottom_nav = label_by_id.get(current_id, labels[0])
-
-    def _on_nav_change() -> None:
-        st.session_state.current_page = id_by_label[st.session_state.eb_bottom_nav]
-
-    st.radio(
-        "页面导航",
-        options=labels,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="eb_bottom_nav",
-        on_change=_on_nav_change,
-    )
+    col1, col2, col3 = st.columns(3, gap="small")
+    for col, (page_id, label) in zip((col1, col2, col3), NAV_ITEMS):
+        with col:
+            is_active = st.session_state.current_page == page_id
+            if st.button(
+                label,
+                key=f"nav_{page_id}",
+                type="primary" if is_active else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state.current_page = page_id
+                st.rerun()
