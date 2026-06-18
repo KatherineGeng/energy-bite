@@ -1,0 +1,5 @@
+log_id,date,menu_id,taste_score,operation_score,mood_score,energy_score,is_favorited,sleep_quality,brain_body_load,meal_count
+LOG_20260618_001,2026-06-18,MENU_001,4,5,4,4,True,良好,中等,3
+LOG_20260618_002,2026-06-18,MENU_002,4,5,4,4,True,良好,中等,3
+LOG_20260618_003,2026-06-18,MENU_003,4,5,4,4,True,良好,中等,3
+LOG_20260619_001,2026-06-19,MENU_001,5,4,4,5,true,,,
