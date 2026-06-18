@@ -126,27 +126,25 @@ def render() -> None:
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    mood_col, energy_col = st.columns(2)
-    with mood_col:
-        st.markdown("**情绪状态 (1-5)**")
-        day_mood = st.radio(
-            "情绪状态",
-            options=SCORE_OPTIONS,
-            horizontal=True,
-            label_visibility="collapsed",
-            key="review_day_mood",
-            index=2,
-        )
-    with energy_col:
-        st.markdown("**精力水平 (1-5)**")
-        day_energy = st.radio(
-            "精力水平",
-            options=SCORE_OPTIONS,
-            horizontal=True,
-            label_visibility="collapsed",
-            key="review_day_energy",
-            index=2,
-        )
+    st.markdown("**情绪状态 (1-5)**")
+    day_mood = st.radio(
+        "情绪状态",
+        options=SCORE_OPTIONS,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="review_day_mood",
+        index=2,
+    )
+
+    st.markdown("**精力水平 (1-5)**")
+    day_energy = st.radio(
+        "精力水平",
+        options=SCORE_OPTIONS,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="review_day_energy",
+        index=2,
+    )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
         log_ids: list[str] = []

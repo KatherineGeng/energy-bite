@@ -1,6 +1,9 @@
-"""Mobile-first layout helpers for Energy Bite."""
+"""Mobile-first layout helpers for 简愈一人食."""
 
 from __future__ import annotations
+
+import base64
+from pathlib import Path
 
 import streamlit as st
 
@@ -12,11 +15,37 @@ NAV_ITEMS = [
     ("export", "收藏分享"),
 ]
 
+_APPLE_TOUCH_ICON = Path(__file__).resolve().parent.parent / "assets" / "apple-touch-icon.png"
+_FAVICON = Path(__file__).resolve().parent.parent / "assets" / "favicon.png"
+
+
+def _apple_touch_icon_tag() -> str:
+    tags = []
+    if _FAVICON.exists():
+        encoded = base64.b64encode(_FAVICON.read_bytes()).decode("ascii")
+        tags.append(
+            f'<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,{encoded}">'
+        )
+    if _APPLE_TOUCH_ICON.exists():
+        encoded = base64.b64encode(_APPLE_TOUCH_ICON.read_bytes()).decode("ascii")
+        tags.append(
+            f'<link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,{encoded}">'
+        )
+    return "".join(tags)
+
 
 def inject_mobile_css() -> None:
+    icon_tags = _apple_touch_icon_tag()
+    if icon_tags:
+        st.markdown(icon_tags, unsafe_allow_html=True)
+
     st.markdown(
         f"""
         <style>
+        html, body, .stApp {{
+            overflow-x: hidden !important;
+            max-width: 100vw !important;
+        }}
         [data-testid="stSidebar"],
         [data-testid="stSidebarCollapsedControl"],
         [data-testid="collapsedControl"] {{
@@ -28,26 +57,16 @@ def inject_mobile_css() -> None:
         footer {{
             visibility: hidden !important;
         }}
+        section.main {{
+            overflow-x: hidden !important;
+        }}
         .block-container {{
             padding-top: 0.35rem !important;
-            padding-bottom: 3.6rem !important;
-            max-width: 680px !important;
-        }}
-        .eb-app-header {{
-            text-align: center;
-            padding: 0.2rem 0 0.35rem;
-            margin-bottom: 0;
-        }}
-        .eb-app-header h1 {{
-            font-size: 1.2rem;
-            margin: 0;
-            color: {ACCENT};
-            font-family: 'Noto Serif SC', serif !important;
-        }}
-        .eb-app-header p {{
-            margin: 0.15rem 0 0;
-            font-size: 0.8rem;
-            color: #64748B;
+            padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            max-width: 100% !important;
+            width: 100% !important;
         }}
         [data-testid="stVerticalBlock"] > div {{
             gap: 0.35rem !important;
@@ -60,79 +79,70 @@ def inject_mobile_css() -> None:
         .stCaption, [data-testid="stCaptionContainer"] {{
             margin-bottom: 0.25rem !important;
         }}
-        /* 底部导航：三键单行横排 */
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child {{
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
+        /* 双列按钮行：各占 50%，不溢出 */
+        div[data-testid="stHorizontalBlock"] {{
             width: 100% !important;
-            max-width: 680px !important;
-            margin: 0 auto !important;
-            background: rgba(249, 248, 246, 0.98) !important;
-            border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
-            padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom)) !important;
-            z-index: 999999 !important;
-            box-shadow: 0 -4px 18px rgba(30, 41, 59, 0.06) !important;
+            max-width: 100% !important;
+            gap: 0.35rem !important;
         }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child [data-testid="stHorizontalBlock"] {{
-            display: flex !important;
-            flex-direction: row !important;
-            gap: 0.25rem !important;
-            align-items: stretch !important;
-        }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child [data-testid="column"] {{
-            flex: 1 !important;
+        div[data-testid="column"] {{
             min-width: 0 !important;
+            flex: 1 1 0 !important;
+            width: auto !important;
         }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child button {{
-            border-radius: 10px !important;
-            min-height: 2.15rem !important;
-            height: auto !important;
-            font-size: 0.68rem !important;
-            padding: 0.35rem 0.2rem !important;
-            white-space: nowrap !important;
+        .stButton > button {{
             width: 100% !important;
+            max-width: 100% !important;
+            white-space: nowrap !important;
+            font-size: 0.82rem !important;
+            padding: 0.45rem 0.35rem !important;
         }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child button[kind="secondary"] {{
-            background: rgba(255,255,255,0.6) !important;
-            color: {TEXT} !important;
-            border: 1px solid rgba(141, 163, 153, 0.2) !important;
+        div[data-testid="stSelectbox"] {{
+            width: 100% !important;
+            max-width: 100% !important;
         }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child button[kind="primary"] {{
-            background: rgba(141, 163, 153, 0.18) !important;
-            color: {ACCENT} !important;
-            border: 1px solid rgba(141, 163, 153, 0.45) !important;
-            font-weight: 600 !important;
-        }}
-        section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child button[kind="primary"]::before {{
-            color: {ACCENT} !important;
-        }}
-        /* 强制 radio 横向排列 */
         div[data-testid="stRadio"] > div {{
             flex-direction: row !important;
             flex-wrap: wrap !important;
             gap: 0.15rem !important;
         }}
         div[data-testid="stRadio"] label {{
-            margin-right: 0.35rem !important;
+            margin-right: 0.25rem !important;
+            font-size: 0.85rem !important;
         }}
-        /* 底部导航按钮强制横排 */
-        [data-testid="stHorizontalBlock"] {{
+        /* 底部导航：固定于屏幕底部（app.py 最后一个 block） */
+        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child {{
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 999999 !important;
+            background: rgba(249, 248, 246, 0.98) !important;
+            border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
+            padding: 0.4rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom)) !important;
+            box-shadow: 0 -4px 18px rgba(30, 41, 59, 0.06) !important;
+            max-width: 100vw !important;
+        }}
+        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child [data-testid="stHorizontalBlock"] {{
             flex-wrap: nowrap !important;
+            gap: 0.25rem !important;
         }}
-        [data-testid="column"] {{
-            min-width: 0 !important;
+        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child button[kind="secondary"] {{
+            background: rgba(255,255,255,0.6) !important;
+            color: {TEXT} !important;
+            border: 1px solid rgba(141, 163, 153, 0.2) !important;
         }}
-        .stButton > button {{
-            white-space: nowrap !important;
+        section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child button[kind="primary"] {{
+            background: rgba(141, 163, 153, 0.18) !important;
+            color: {ACCENT} !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            font-weight: 600 !important;
         }}
         @media (max-width: 640px) {{
-            .block-container {{
-                padding-left: 0.75rem !important;
-                padding-right: 0.75rem !important;
+            .stButton > button {{
+                font-size: 0.78rem !important;
             }}
-            section.main div.block-container > div > div[data-testid="stVerticalBlock"]:last-child button {{
+            section.main div.block-container > div > div[data-testid="stVerticalBlock"] > div:last-child button {{
                 font-size: 0.62rem !important;
             }}
         }}
@@ -159,7 +169,7 @@ def render_bottom_nav() -> None:
     if "current_page" not in st.session_state:
         st.session_state.current_page = "morning"
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3, gap="small")
     for col, (page_id, label) in zip((col1, col2, col3), NAV_ITEMS):
         with col:
             is_active = st.session_state.current_page == page_id

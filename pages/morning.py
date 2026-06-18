@@ -60,15 +60,11 @@ def render() -> None:
     if locked and st.session_state.get("final_daily_list"):
         st.success("今日就餐计划已确认 · 可前往「晚间回顾」。")
 
-    sleep_col, load_col, meal_col = st.columns(3)
-    with sleep_col:
-        sleep = st.selectbox("昨晚睡眠状态", ["很好", "良好", "一般", "较差"], key="morning_sleep")
-    with load_col:
-        load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
-    with meal_col:
-        meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
+    sleep = st.selectbox("昨晚睡眠状态", ["很好", "良好", "一般", "较差"], key="morning_sleep")
+    load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
+    meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2, gap="small")
     with col1:
         if st.button("生成菜单", type="primary", use_container_width=True, key="gen_menus", disabled=locked):
             recs = get_daily_menus(sleep, load, int(meal_count))

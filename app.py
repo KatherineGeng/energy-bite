@@ -13,7 +13,11 @@ from src.database import count_favorited_menus, init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.theme import inject_theme_assets
 
-st.set_page_config(page_title="简愈一人食", page_icon="🌿", layout="centered")
+st.set_page_config(
+    page_title="简愈一人食",
+    page_icon="assets/favicon.png",
+    layout="centered",
+)
 
 init_database()
 inject_theme_assets()
