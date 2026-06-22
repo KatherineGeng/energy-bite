@@ -73,7 +73,15 @@ MENU_ARCHIVE_COLUMNS = [
     "saved_at",
 ]
 USER_PROFILE_FILE = "user_profiles.csv"
-USER_PROFILE_COLUMNS = ["user_id", "nickname", "gender", "age_group", "created_at", "updated_at"]
+USER_PROFILE_COLUMNS = [
+    "user_id",
+    "client_ip",
+    "nickname",
+    "gender",
+    "age_group",
+    "created_at",
+    "updated_at",
+]
 APP_IMAGES_FILE = "app_images.csv"
 APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at"]
 APP_IMAGES_DIR = DATA_PATH / "app_images"
@@ -513,39 +521,57 @@ def get_log_dates() -> set[str]:
     return set(str(d).strip() for d in logs["date"].unique() if str(d).strip())
 
 
-def load_user_profile() -> dict[str, Any] | None:
+def load_user_profile(client_ip: str = "") -> dict[str, Any] | None:
     df = _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
     if df.empty:
         return None
-    row = df.iloc[-1]
-    return {col: str(row[col]) for col in USER_PROFILE_COLUMNS}
+    ip = str(client_ip or "").strip()
+    if ip:
+        hits = df[df["client_ip"].astype(str).str.strip() == ip]
+        if not hits.empty:
+            row = hits.iloc[-1]
+            return {col: str(row[col]) for col in USER_PROFILE_COLUMNS}
+    return None
+
+
+def save_user_profile(
+    nickname: str,
+    gender: str,
+    age_group: str,
+    client_ip: str = "",
+) -> None:
+    now = datetime.now().isoformat(timespec="seconds")
+    df = _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
+    ip = str(client_ip or "").strip()
+    nick = nickname.strip()
+
+    if ip:
+        mask = df["client_ip"].astype(str).str.strip() == ip
+        if mask.any():
+            idx = df[mask].index[-1]
+            df.at[idx, "nickname"] = nick
+            df.at[idx, "gender"] = gender
+            df.at[idx, "age_group"] = age_group
+            df.at[idx, "updated_at"] = now
+            _write_csv(df, USER_PROFILE_FILE)
+            return
+
+    user_id = f"U{len(df) + 1:03d}"
+    row = {
+        "user_id": user_id,
+        "client_ip": ip,
+        "nickname": nick,
+        "gender": gender,
+        "age_group": age_group,
+        "created_at": now,
+        "updated_at": now,
+    }
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(df, USER_PROFILE_FILE)
 
 
 def load_all_user_profiles() -> pd.DataFrame:
     return _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
-
-
-def save_user_profile(nickname: str, gender: str, age_group: str) -> None:
-    now = datetime.now().isoformat(timespec="seconds")
-    df = _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
-    if df.empty:
-        user_id = "U001"
-        row = {
-            "user_id": user_id,
-            "nickname": nickname.strip(),
-            "gender": gender,
-            "age_group": age_group,
-            "created_at": now,
-            "updated_at": now,
-        }
-        _write_csv(pd.DataFrame([row]), USER_PROFILE_FILE)
-        return
-    idx = df.index[-1]
-    df.at[idx, "nickname"] = nickname.strip()
-    df.at[idx, "gender"] = gender
-    df.at[idx, "age_group"] = age_group
-    df.at[idx, "updated_at"] = now
-    _write_csv(df, USER_PROFILE_FILE)
 
 
 def save_app_image(data: bytes, *, source: str = "user", title: str = "") -> str:

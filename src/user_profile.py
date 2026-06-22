@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import streamlit as st
 
+from src.client_identity import client_ip as _client_ip
 from src.constants import AGE_GROUP_OPTIONS, GENDER_OPTIONS
 from src.database import load_user_profile, save_user_profile
 
 
 def profile_complete() -> bool:
-    row = load_user_profile()
+    row = load_user_profile(_client_ip())
     return bool(row and str(row.get("nickname", "")).strip())
 
 
 def nickname() -> str:
-    row = load_user_profile()
+    row = load_user_profile(_client_ip())
     if row:
         return str(row.get("nickname", "")).strip()
     return ""
@@ -50,7 +49,7 @@ def render_onboarding() -> bool:
         if not text:
             st.warning("请填写昵称。")
             return False
-        save_user_profile(text, gender, age_group)
+        save_user_profile(text, gender, age_group, _client_ip())
         st.session_state.user_profile_loaded = True
         st.rerun()
     return False
