@@ -62,6 +62,16 @@ WEIGHTS_COLUMNS = [
 ]
 FAVORITES_DISHES_COLUMNS = ["fav_id", "menu_id", "date", "saved_at"]
 FAVORITES_MENUS_COLUMNS = ["fav_id", "date", "menu_ids", "saved_at"]
+MENU_ARCHIVE_FILE = "menu_archive.csv"
+MENU_ARCHIVE_COLUMNS = [
+    "archive_id",
+    "date",
+    "menu_ids",
+    "is_shared",
+    "is_favorited",
+    "is_imported",
+    "saved_at",
+]
 MORNING_CONTEXT_COLUMNS = ["date", "sleep", "load", "meal_count", "updated_at"]
 DAILY_PLAN_COLUMNS = ["date", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
 
@@ -163,6 +173,11 @@ def init_database(force: bool = False) -> None:
 
     if force or not _csv_path(DAILY_PLAN_FILE).exists():
         _write_csv(_empty_frame(DAILY_PLAN_COLUMNS), DAILY_PLAN_FILE)
+
+    if force or not _csv_path(MENU_ARCHIVE_FILE).exists():
+        _write_csv(_empty_frame(MENU_ARCHIVE_COLUMNS), MENU_ARCHIVE_FILE)
+
+    _migrate_legacy_favorites_to_archive()
 
 
 def load_ingredients() -> pd.DataFrame:
@@ -325,12 +340,227 @@ def count_favorited_menus() -> int:
     return int(dish_count + menu_count)
 
 
+def _flag_str(val: bool) -> str:
+    return "1" if val else "0"
+
+
+def _flag_bool(val: object) -> bool:
+    return str(val).strip().lower() in ("1", "true", "yes")
+
+
+def load_menu_archive() -> pd.DataFrame:
+    return _read_csv(MENU_ARCHIVE_FILE, MENU_ARCHIVE_COLUMNS)
+
+
+def record_menu_archive(
+    day: str,
+    menu_ids: list[str],
+    *,
+    is_shared: bool = False,
+    is_favorited: bool = False,
+    is_imported: bool = False,
+) -> None:
+    """Unified menu history — share / favorite / import flags on one row."""
+    clean_ids = [mid.strip() for mid in menu_ids if mid and str(mid).strip()]
+    if not clean_ids:
+        return
+
+    ids_text = "|".join(clean_ids)
+    df = load_menu_archive()
+    now = datetime.now().isoformat(timespec="seconds")
+
+    if not df.empty:
+        match = df[(df["date"] == day) & (df["menu_ids"] == ids_text)]
+        if not match.empty:
+            idx = match.index[-1]
+            if is_shared:
+                df.at[idx, "is_shared"] = "1"
+            if is_favorited:
+                df.at[idx, "is_favorited"] = "1"
+            if is_imported:
+                df.at[idx, "is_imported"] = "1"
+            df.at[idx, "saved_at"] = now
+            _write_csv(df, MENU_ARCHIVE_FILE)
+            return
+
+    archive_id = f"AR_{day.replace('-', '')}_{len(df) + 1:04d}"
+    row = {
+        "archive_id": archive_id,
+        "date": day,
+        "menu_ids": ids_text,
+        "is_shared": _flag_str(is_shared),
+        "is_favorited": _flag_str(is_favorited),
+        "is_imported": _flag_str(is_imported),
+        "saved_at": now,
+    }
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(df, MENU_ARCHIVE_FILE)
+
+
+def _migrate_legacy_favorites_to_archive() -> None:
+    for _, row in _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS).iterrows():
+        if str(row.get("menu_id", "")).strip():
+            record_menu_archive(
+                str(row["date"]),
+                [str(row["menu_id"])],
+                is_favorited=True,
+            )
+    for _, row in _read_csv(FAVORITES_MENUS_FILE, FAVORITES_MENUS_COLUMNS).iterrows():
+        ids = [x for x in str(row.get("menu_ids", "")).split("|") if x.strip()]
+        if ids:
+            record_menu_archive(str(row["date"]), ids, is_favorited=True)
+
+
+def archive_date_markers() -> dict[str, str]:
+    df = load_menu_archive()
+    if df.empty:
+        return {}
+    markers: dict[str, str] = {}
+    for _, row in df.iterrows():
+        day = str(row.get("date", "")).strip()
+        if not day or not str(row.get("menu_ids", "")).strip():
+            continue
+        if _flag_bool(row.get("is_shared")):
+            markers[day] = "shared"
+        elif _flag_bool(row.get("is_favorited")):
+            markers[day] = "favorited"
+        elif _flag_bool(row.get("is_imported")):
+            markers[day] = "imported"
+        elif day not in markers:
+            markers[day] = "archive"
+    return markers
+
+
+def menu_ids_for_archive_date(day: str) -> list[str]:
+    df = load_menu_archive()
+    if df.empty:
+        return []
+    rows = df[df["date"] == day]
+    out: list[str] = []
+    seen: set[str] = set()
+    for _, row in rows.iterrows():
+        for mid in str(row.get("menu_ids", "")).split("|"):
+            mid = mid.strip()
+            if mid and mid not in seen:
+                seen.add(mid)
+                out.append(mid)
+    return out
+
+
+def all_menu_ids_for_date(day: str) -> list[str]:
+    """Merge daily meal plan + unified archive for a date."""
+    out: list[str] = []
+    seen: set[str] = set()
+    saved = load_daily_meal_plan(day)
+    if saved:
+        for mid in saved["menu_ids"]:
+            if mid not in seen:
+                seen.add(mid)
+                out.append(mid)
+    for mid in menu_ids_for_archive_date(day):
+        if mid not in seen:
+            seen.add(mid)
+            out.append(mid)
+    return out
+
+
+def search_archive_menu_ids(keyword: str) -> list[str]:
+    """Search menu names across archive entries."""
+    text = keyword.strip()
+    if len(text) < 1:
+        return []
+    df = load_menu_archive()
+    if df.empty:
+        return []
+    hits: list[str] = []
+    seen: set[str] = set()
+    for _, row in df.iterrows():
+        for mid in str(row.get("menu_ids", "")).split("|"):
+            mid = mid.strip()
+            if not mid or mid in seen:
+                continue
+            menu_row = get_menu_by_id(mid)
+            if menu_row and text in str(menu_row.get("menu_name", "")):
+                seen.add(mid)
+                hits.append(mid)
+    return hits
+
+
 def load_favorites_dishes() -> pd.DataFrame:
-    return _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS)
+    legacy = _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS)
+    archive = load_menu_archive()
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    if not archive.empty:
+        fav_rows = archive[archive["is_favorited"] == "1"]
+        for _, row in fav_rows.iterrows():
+            mids = [x.strip() for x in str(row["menu_ids"]).split("|") if x.strip()]
+            if len(mids) != 1:
+                continue
+            key = (str(row["date"]), mids[0])
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(
+                {
+                    "fav_id": str(row["archive_id"]),
+                    "menu_id": mids[0],
+                    "date": str(row["date"]),
+                    "saved_at": str(row["saved_at"]),
+                }
+            )
+
+    if not legacy.empty:
+        for _, row in legacy.iterrows():
+            key = (str(row["date"]), str(row["menu_id"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append({col: str(row[col]) for col in FAVORITES_DISHES_COLUMNS})
+
+    if not rows:
+        return _empty_frame(FAVORITES_DISHES_COLUMNS)
+    return pd.DataFrame(rows, columns=FAVORITES_DISHES_COLUMNS)
 
 
 def load_favorites_menus() -> pd.DataFrame:
-    return _read_csv(FAVORITES_MENUS_FILE, FAVORITES_MENUS_COLUMNS)
+    legacy = _read_csv(FAVORITES_MENUS_FILE, FAVORITES_MENUS_COLUMNS)
+    archive = load_menu_archive()
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    if not archive.empty:
+        fav_rows = archive[archive["is_favorited"] == "1"]
+        for _, row in fav_rows.iterrows():
+            ids_text = str(row["menu_ids"])
+            mids = [x.strip() for x in ids_text.split("|") if x.strip()]
+            if len(mids) < 2:
+                continue
+            key = (str(row["date"]), ids_text)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(
+                {
+                    "fav_id": str(row["archive_id"]),
+                    "date": str(row["date"]),
+                    "menu_ids": ids_text,
+                    "saved_at": str(row["saved_at"]),
+                }
+            )
+
+    if not legacy.empty:
+        for _, row in legacy.iterrows():
+            key = (str(row["date"]), str(row["menu_ids"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append({col: str(row[col]) for col in FAVORITES_MENUS_COLUMNS})
+
+    if not rows:
+        return _empty_frame(FAVORITES_MENUS_COLUMNS)
+    return pd.DataFrame(rows, columns=FAVORITES_MENUS_COLUMNS)
 
 
 def save_favorite_dish(menu_id: str, date: str) -> None:
@@ -346,6 +576,7 @@ def save_favorite_dish(menu_id: str, date: str) -> None:
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, FAVORITES_DISHES_FILE)
+    record_menu_archive(date, [menu_id], is_favorited=True)
 
 
 def save_favorite_menu_set(menu_ids: list[str], date: str) -> None:
@@ -363,6 +594,7 @@ def save_favorite_menu_set(menu_ids: list[str], date: str) -> None:
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, FAVORITES_MENUS_FILE)
+    record_menu_archive(date, menu_ids, is_favorited=True)
 
 
 def next_menu_id() -> str:
@@ -560,6 +792,8 @@ def append_menu_from_share(
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, MENU_FILE)
+    today = datetime.now().date().isoformat()
+    record_menu_archive(today, [menu_id], is_imported=True)
     return menu_id
 
 

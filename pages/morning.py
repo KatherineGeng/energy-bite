@@ -31,7 +31,7 @@ from src.llm_client import has_api_key
 from src.coverage_widget import render_coverage_badge, render_meal_headline
 from src.nutrition import coverage_summary, menu_row_from_analysis
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
-from src.mobile_ui import render_primary_action_link
+from src.mobile_ui import render_meal_action_row, render_primary_action_link
 from src.query_nav import pop_query_param
 from src.recommendation import format_ingredient_names, get_daily_menus
 from src.theme import section_title
@@ -480,6 +480,23 @@ def _render_add_panel(meal_type: str) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def _apply_meal_query_actions() -> None:
+    meal_act = pop_query_param("meal_act")
+    meal = pop_query_param("meal")
+    mid = pop_query_param("mid")
+    if not meal_act or not meal:
+        return
+    if meal_act == "remove" and mid:
+        _on_remove_dish(meal, mid)
+        st.rerun()
+    elif meal_act == "manual":
+        _on_open_manual(meal)
+        st.rerun()
+    elif meal_act == "library":
+        _on_open_library(meal)
+        st.rerun()
+
+
 def _render_meal_toolbar(
     meal_type: str,
     *,
@@ -489,26 +506,16 @@ def _render_meal_toolbar(
     show_library: bool = False,
     key_suffix: str = "row",
 ) -> None:
-    actions: list[tuple[str, str, object | None, tuple]] = []
+    del key_suffix
+    items: list[tuple[str, str, str | None]] = []
     if show_remove and menu_id:
-        actions.append(("remove", "移除", _on_remove_dish, (meal_type, menu_id)))
+        items.append(("remove", "移除", menu_id))
     if show_manual:
-        actions.append(("manual", "手工添加", _on_open_manual, (meal_type,)))
+        items.append(("manual", "手工添加", None))
     if show_library:
-        actions.append(("library", "菜单库添加", _on_open_library, (meal_type,)))
-    if not actions:
-        return
-
-    cols = st.columns(len(actions))
-    for col, (action, label, callback, args) in zip(cols, actions):
-        with col:
-            st.button(
-                label,
-                key=f"meal_{action}_{meal_type}_{key_suffix}",
-                use_container_width=True,
-                on_click=callback,
-                args=args,
-            )
+        items.append(("library", "菜单库添加", None))
+    if items:
+        render_meal_action_row(meal_type, items)
 
 
 def _render_meal_sections(
@@ -610,6 +617,7 @@ def render() -> None:
     today_iso = st.session_state.get("today_date", date.today().isoformat())
 
     legacy_act = pop_query_param("act")
+    _apply_meal_query_actions()
 
     locked = st.session_state.get("menu_locked", False)
 

@@ -12,10 +12,13 @@ from src.database import (
     get_menu_by_id,
     get_menu_weight,
     init_database,
+    all_menu_ids_for_date,
     load_daily_meal_plan,
     load_favorites_dishes,
     load_favorites_menus,
     load_menus,
+    record_menu_archive,
+    search_archive_menu_ids,
 )
 from src.export import generate_poster
 from src.meal_plan_dates import markers_with_today
@@ -265,6 +268,8 @@ def _render_poster_tab() -> None:
 
                     st.session_state.poster_share_text = encode_day_menu_share_text(date_for_code, rows)
 
+                    _record_shared_menus(date_for_code, ids)
+
                 else:
 
                     st.session_state.poster_share_text = ""
@@ -291,8 +296,22 @@ def _render_poster_tab() -> None:
 
 
 
+def _record_shared_menus(day: str, menu_ids: list[str]) -> None:
+    if menu_ids:
+        record_menu_archive(day, menu_ids, is_shared=True)
+
+
 def _render_past_menus_tab() -> None:
-    st.caption("点击日历中有圆点的日期，查看当日菜单并生成分享口令。")
+    st.caption("按日期查看菜单；分享、收藏、导入的菜品均收录在同一库中。")
+
+    search = st.text_input("搜索菜品名称", placeholder="输入菜名关键字", key="archive_search")
+    if search.strip():
+        hits = search_archive_menu_ids(search.strip())
+        if hits:
+            st.caption("搜索结果：")
+            _render_menu_summary("搜索", hits)
+        else:
+            st.info("未找到匹配的菜品。")
 
     today_iso = st.session_state.get("today_date", date.today().isoformat())
     today_ids = _today_menu_ids()
@@ -325,12 +344,13 @@ def _render_past_menus_tab() -> None:
         st.session_state.past_menu_date = pick_date
         st.session_state.day_share_text = ""
 
-    st.caption("有菜单的日期：" + " · ".join(
-        f"{d}({'●' if markers[d] == 'confirmed' else '○'})" for d in marked_dates[:12]
+    st.caption("有记录的日期：" + " · ".join(
+        f"{d}({'●' if markers.get(d) == 'confirmed' else '○'})" for d in marked_dates[:12]
     ))
 
-    saved = load_daily_meal_plan(pick_date)
-    menu_ids = saved["menu_ids"] if saved else menu_ids_for_date(pick_date)
+    menu_ids = all_menu_ids_for_date(pick_date)
+    if not menu_ids:
+        menu_ids = menu_ids_for_date(pick_date)
     rows = _menu_rows_for_ids(menu_ids)
 
     if not menu_ids:
@@ -345,6 +365,7 @@ def _render_past_menus_tab() -> None:
 
     if st.button("生成当日分享口令", type="primary", use_container_width=True, key="gen_day_share"):
         st.session_state.day_share_text = encode_day_menu_share_text(pick_date, rows)
+        _record_shared_menus(pick_date, menu_ids)
 
     if st.session_state.get("day_share_text"):
         st.text_area(
@@ -416,6 +437,8 @@ def _render_history_share_tab() -> None:
                         estimated_score=score,
 
                     )
+
+                    _record_shared_menus(str(row["date"]), [str(row["menu_id"])])
 
 
 

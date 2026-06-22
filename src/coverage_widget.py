@@ -1,4 +1,4 @@
-"""Nutrition coverage — native Streamlit (mobile-safe, no iframes)."""
+"""Nutrition coverage — inline summary + compact popover trigger."""
 
 from __future__ import annotations
 
@@ -9,8 +9,6 @@ from src.nutrition import (
     coverage_detail_rows,
     coverage_summary,
 )
-
-ACCENT = "#8DA399"
 
 
 def _render_coverage_detail(menu_row: dict) -> None:
@@ -29,11 +27,11 @@ def _render_coverage_detail(menu_row: dict) -> None:
 def render_coverage_badge(menu_row: dict, key: str) -> None:
     """Summary line + popover detail."""
     summary = coverage_summary(menu_row)
-    col1, col2 = st.columns([5, 1])
-    with col1:
+    meta_col, pop_col = st.columns([5, 2], gap="small")
+    with meta_col:
         st.caption(f"营养覆盖 {summary}")
-    with col2:
-        with st.popover("i", use_container_width=True):
+    with pop_col:
+        with st.popover("i 点击查看"):
             _render_coverage_detail(menu_row)
 
 
@@ -46,24 +44,20 @@ def render_meal_headline(
     widget_key: str,
     ai_fresh: bool = False,
 ) -> None:
-    del widget_key  # kept for call-site compatibility
+    del locked, widget_key  # prep time always shown; keys kept for call sites
     tags_str = str(row.get("energy_tags", "")).replace("·", " · ")
     summary = coverage_summary(row)
     ai_tag = " · `AI新菜`" if ai_fresh else ""
+    prep = f"⏱ {row['prep_minutes']} min · "
 
     if idx == 0:
         st.markdown(f"**{meal_type}** · **{row['menu_name']}**{ai_tag}")
     else:
         st.markdown(f"· **{row['menu_name']}**{ai_tag}")
 
-    if locked:
-        meta = f"{tags_str} · 营养覆盖 {summary}"
-    else:
-        meta = f"{tags_str} · ⏱ {row['prep_minutes']} min · 营养覆盖 {summary}"
-
-    meta_col, pop_col = st.columns([11, 1])
+    meta_col, pop_col = st.columns([6, 2], gap="small")
     with meta_col:
-        st.caption(meta)
+        st.caption(f"{tags_str} · {prep}营养覆盖 {summary}")
     with pop_col:
-        with st.popover("i", use_container_width=True):
+        with st.popover("i 点击查看"):
             _render_coverage_detail(row)

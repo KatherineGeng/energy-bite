@@ -6,6 +6,8 @@ from datetime import date
 
 import streamlit as st
 
+from urllib.parse import quote
+
 from src.calendar_utils import display_version, format_today_cn
 from src.constants import APP_VERSION
 from src.theme import ACCENT, TEXT
@@ -97,10 +99,58 @@ def inject_mobile_css() -> None:
             line-height: 1 !important;
         }}
         .eb-gen-btn {{
-            display: flex !important;
-            width: 100% !important;
-            margin: 0.35rem 0 0.5rem !important;
+            display: block !important;
+            width: auto !important;
+            min-width: 9.5rem !important;
+            max-width: 16rem !important;
+            margin: 0.5rem auto !important;
+            padding: 0.58rem 1.25rem !important;
+            text-align: center !important;
             box-sizing: border-box !important;
+        }}
+        .eb-meal-action-row {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            justify-content: space-between !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
+            margin: 0.35rem 0 0.15rem !important;
+        }}
+        .eb-meal-action-btn {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            padding: 0.4rem 0.15rem !important;
+            font-size: 0.68rem !important;
+            line-height: 1.2 !important;
+            color: {TEXT} !important;
+            background: rgba(255,255,255,0.9) !important;
+            border: 1px solid rgba(141, 163, 153, 0.32) !important;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap !important;
+        }}
+        [data-testid="stColumn"] .stPopover > button {{
+            width: auto !important;
+            min-height: unset !important;
+            height: auto !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: {ACCENT} !important;
+            font-size: 0.72rem !important;
+            font-weight: 500 !important;
+            justify-content: flex-start !important;
+        }}
+        [data-testid="stColumn"] .stPopover {{
+            margin-top: -0.15rem !important;
         }}
         .eb-action-btn {{
             flex: 1 1 0 !important;
@@ -208,13 +258,28 @@ def render_primary_action_link(
     *,
     disabled: bool = False,
 ) -> None:
-    """Full-width primary action via ?act= (mobile-safe, no WebSocket button)."""
+    """Centered primary action via ?act= (mobile-safe)."""
     inner = f'<span class="eb-action-icon">{icon}</span><span>{label}</span>'
     cls = "eb-action-btn primary eb-gen-btn"
     if disabled:
-        st.markdown(f'<span class="{cls} disabled">{inner}</span>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center"><span class="{cls} disabled">{inner}</span></div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<a class="{cls}" href="?act={act}">{inner}</a>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center"><a class="{cls}" href="?act={act}">{inner}</a></div>', unsafe_allow_html=True)
+
+
+def render_meal_action_row(
+    meal_type: str,
+    items: list[tuple[str, str, str | None]],
+) -> None:
+    """Horizontal meal edit links: (act_key, label, menu_id or None)."""
+    parts: list[str] = []
+    meal_q = quote(meal_type)
+    for act, label, menu_id in items:
+        href = f"?meal_act={act}&meal={meal_q}"
+        if menu_id:
+            href += f"&mid={quote(menu_id)}"
+        parts.append(f'<a class="eb-meal-action-btn" href="{href}">{label}</a>')
+    st.markdown(f'<div class="eb-meal-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
 def render_bottom_nav(current_page: str | None = None) -> None:
