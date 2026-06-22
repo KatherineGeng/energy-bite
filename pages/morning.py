@@ -31,6 +31,7 @@ from src.llm_client import has_api_key
 from src.coverage_widget import render_coverage_badge, render_meal_headline
 from src.nutrition import coverage_summary, menu_row_from_analysis
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
+from src.mobile_ui import render_primary_action_link
 from src.query_nav import pop_query_param
 from src.recommendation import format_ingredient_names, get_daily_menus
 from src.theme import section_title
@@ -631,11 +632,13 @@ def render() -> None:
     load = st.session_state.get("morning_load", "中等")
 
     if legacy_act == "gen" and planning_phase and not locked and has_context:
-        _run_generate(sleep, load, int(meal_count))
+        with st.spinner("正在生成菜单…"):
+            _run_generate(sleep, load, int(meal_count))
         st.rerun()
 
     if legacy_act == "shuffle" and not planning_phase and not locked and has_context:
-        _run_shuffle(sleep, load, int(meal_count))
+        with st.spinner("正在换套菜单…"):
+            _run_shuffle(sleep, load, int(meal_count))
         st.rerun()
 
     if planning_phase:
@@ -650,16 +653,7 @@ def render() -> None:
         elif has_api_key():
             st.caption("下一次生成将由 AI 创作全新菜品。")
 
-        if st.button(
-            "🍴 生成菜单",
-            type="primary",
-            use_container_width=True,
-            key="btn_gen_menu",
-            disabled=not has_context,
-        ):
-            with st.spinner("正在生成菜单…"):
-                _run_generate(sleep, load, int(meal_count))
-            st.rerun()
+        render_primary_action_link("gen", "🍴", "生成菜单", disabled=not has_context)
         return
 
     note = st.session_state.pop("last_gen_note", None)
@@ -676,16 +670,7 @@ def render() -> None:
         st.caption("下一次换套将由 AI 创作全新菜品。")
 
     if not locked:
-        if st.button(
-            "🔀 换套菜单",
-            type="primary",
-            use_container_width=True,
-            key="btn_shuffle_menu",
-            disabled=not has_context,
-        ):
-            with st.spinner("正在换套菜单…"):
-                _run_shuffle(sleep, load, int(meal_count))
-            st.rerun()
+        render_primary_action_link("shuffle", "🔀", "换套菜单", disabled=not has_context)
     elif locked:
         st.caption("如需修改菜品，请先重新编辑。")
         if st.button("重新编辑菜单", use_container_width=True, key="btn_unlock_plan"):

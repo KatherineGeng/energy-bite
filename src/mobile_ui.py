@@ -61,73 +61,29 @@ def inject_mobile_css() -> None:
             width: 100% !important;
             max-width: 100% !important;
         }}
-        /* 微博式固定底栏：锚点 + 紧随其后的 columns 行 */
-        [data-testid="stElementContainer"]:has(.eb-nav-anchor),
-        [data-testid="stVerticalBlock"]:has(.eb-nav-anchor) {{
-            height: 0 !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            visibility: hidden !important;
-        }}
-        [data-testid="stElementContainer"]:has(.eb-nav-anchor) + [data-testid="stElementContainer"],
-        [data-testid="stVerticalBlock"]:has(.eb-nav-anchor) + [data-testid="stVerticalBlock"] {{
+        /* 微博式固定底栏 — 纯 HTML，不用 :has()（移动端安全） */
+        .eb-bottom-nav {{
             position: fixed !important;
-            bottom: 0 !important;
             left: 0 !important;
             right: 0 !important;
+            bottom: 0 !important;
             z-index: 999999 !important;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            justify-content: space-around !important;
             width: 100% !important;
             max-width: 100vw !important;
+            height: calc(3.15rem + env(safe-area-inset-bottom)) !important;
+            padding: 0 0 env(safe-area-inset-bottom) 0 !important;
             margin: 0 !important;
-            padding: 0.2rem max(0.65rem, env(safe-area-inset-left)) calc(0.2rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
             background: rgba(255, 255, 255, 0.97) !important;
             border-top: 1px solid rgba(30, 41, 59, 0.08) !important;
             box-shadow: 0 -2px 14px rgba(30, 41, 59, 0.07) !important;
             -webkit-backdrop-filter: blur(8px);
             backdrop-filter: blur(8px);
             transform: translateZ(0);
-            pointer-events: auto !important;
-        }}
-        [data-testid="stElementContainer"]:has(.eb-nav-anchor) + [data-testid="stElementContainer"] [data-testid="stHorizontalBlock"],
-        [data-testid="stVerticalBlock"]:has(.eb-nav-anchor) + [data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 0.25rem !important;
-            width: 100% !important;
-        }}
-        [data-testid="stElementContainer"]:has(.eb-nav-anchor) + [data-testid="stElementContainer"] [data-testid="column"],
-        [data-testid="stVerticalBlock"]:has(.eb-nav-anchor) + [data-testid="stVerticalBlock"] [data-testid="column"] {{
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
-            width: auto !important;
-        }}
-        [data-testid="stElementContainer"]:has(.eb-nav-anchor) + [data-testid="stElementContainer"] .stButton > button,
-        [data-testid="stVerticalBlock"]:has(.eb-nav-anchor) + [data-testid="stVerticalBlock"] .stButton > button {{
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 0.12rem !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            color: #64748B !important;
-            font-size: 0.62rem !important;
-            padding: 0.3rem 0.1rem !important;
-            min-height: 2.85rem !important;
-            height: auto !important;
-            line-height: 1.15 !important;
-            white-space: pre-line !important;
-        }}
-        [data-testid="stElementContainer"]:has(.eb-nav-anchor) + [data-testid="stElementContainer"] .stButton > button[kind="primary"],
-        [data-testid="stVerticalBlock"]:has(.eb-nav-anchor) + [data-testid="stVerticalBlock"] .stButton > button[kind="primary"] {{
-            color: {ACCENT} !important;
-            font-weight: 600 !important;
-            background: transparent !important;
-            border: none !important;
         }}
         [data-testid="stHorizontalBlock"] {{
             display: flex !important;
@@ -219,6 +175,31 @@ def inject_mobile_css() -> None:
         .eb-action-row {{ margin: 0.35rem 0 0.5rem !important; }}
         .eb-action-row .eb-action-btn {{ max-width: 50% !important; }}
         .eb-action-row .eb-action-btn:only-child {{ max-width: 100% !important; flex: 1 1 100% !important; }}
+        .eb-bottom-nav .eb-nav-link {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            max-width: 33.33% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.12rem !important;
+            text-decoration: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0.28rem 0 !important;
+            font-size: 0.62rem !important;
+            line-height: 1.1 !important;
+            color: #64748B !important;
+            background: transparent !important;
+            -webkit-tap-highlight-color: transparent;
+        }}
+        .eb-gen-btn {{
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0.35rem 0 0.5rem !important;
+            box-sizing: border-box !important;
+        }}
         .eb-action-btn {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
@@ -335,22 +316,31 @@ def render_action_row(
     st.markdown(f'<div class="eb-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
-def _on_nav(page_id: str) -> None:
-    st.session_state.current_page = page_id
+def render_primary_action_link(
+    act: str,
+    icon: str,
+    label: str,
+    *,
+    disabled: bool = False,
+) -> None:
+    """Full-width primary action via ?act= (mobile-safe, no WebSocket button)."""
+    inner = f'<span class="eb-action-icon">{icon}</span><span>{label}</span>'
+    cls = "eb-action-btn primary eb-gen-btn"
+    if disabled:
+        st.markdown(f'<span class="{cls} disabled">{inner}</span>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<a class="{cls}" href="?act={act}">{inner}</a>', unsafe_allow_html=True)
 
 
 def render_bottom_nav(current_page: str | None = None) -> None:
-    """Fixed tab bar — st.button (WebSocket) + CSS pin, no href reload."""
+    """Fixed tab bar pinned to viewport bottom (Weibo-style HTML)."""
     page = current_page or st.session_state.get("current_page", "morning")
-    st.markdown('<span class="eb-nav-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
-    cols = st.columns(len(NAV_ITEMS))
-    for col, (page_id, icon, label) in zip(cols, NAV_ITEMS):
-        with col:
-            st.button(
-                f"{icon}\n{label}",
-                key=f"bottom_nav_{page_id}",
-                use_container_width=True,
-                type="primary" if page_id == page else "secondary",
-                on_click=_on_nav,
-                args=(page_id,),
-            )
+    parts: list[str] = []
+    for page_id, icon, label in NAV_ITEMS:
+        active = " active" if page_id == page else ""
+        parts.append(
+            f'<a class="eb-nav-link{active}" href="?nav={page_id}">'
+            f'<span class="eb-nav-icon">{icon}</span>'
+            f'<span class="eb-nav-label">{label}</span></a>'
+        )
+    st.markdown(f'<nav class="eb-bottom-nav">{"".join(parts)}</nav>', unsafe_allow_html=True)

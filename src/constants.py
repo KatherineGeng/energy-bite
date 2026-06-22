@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Bump this on every deploy so users can verify Streamlit Cloud picked up the build.
-APP_VERSION = "4.7.8"
+APP_VERSION = "4.7.9"
 
 # 每日前 N 次「生成/换套」走菜品库，第 N+1 次起走 AI（若已配置 API）
 LIBRARY_GEN_MAX = 3
