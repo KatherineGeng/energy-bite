@@ -7,6 +7,7 @@ import streamlit as st
 from src.client_profile import bind_profile, decode_profile, profile_token, sync_profile_from_url
 from src.constants import AGE_GROUP_OPTIONS, GENDER_OPTIONS
 from src.database import save_user_profile
+from src.profile_bootstrap import persist_profile_to_browser
 
 
 def profile_complete() -> bool:
@@ -48,19 +49,6 @@ def planning_prompt() -> str:
     return "开始规划餐食，今天想吃什么？"
 
 
-def _inject_profile_storage_script(token: str) -> None:
-    st.markdown(
-        f"""
-        <script>
-        try {{
-            localStorage.setItem("eb_profile", "{token}");
-        }} catch (e) {{}}
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_onboarding() -> bool:
     st.markdown("### 欢迎使用简愈一人食")
     st.caption("请填写基本信息，我们会记住您的昵称。")
@@ -76,6 +64,6 @@ def render_onboarding() -> bool:
             return False
         token = bind_profile(text, gender, age_group)
         save_user_profile(text, gender, age_group, client_ip="local")
-        _inject_profile_storage_script(token)
+        persist_profile_to_browser(token)
         st.rerun()
     return False
