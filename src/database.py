@@ -211,6 +211,18 @@ def init_database(force: bool = False) -> None:
         _write_csv(_empty_frame(APP_IMAGES_COLUMNS), APP_IMAGES_FILE)
 
     _migrate_legacy_favorites_to_archive()
+    _migrate_legacy_daily_plans()
+
+
+def _migrate_legacy_daily_plans() -> None:
+    """Attach empty user_key rows to current user on next save; readable by legacy fallback."""
+    df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+    if df.empty or "user_key" not in df.columns:
+        return
+    # Ensure snapshots column exists for older files.
+    if "snapshots" not in df.columns:
+        df["snapshots"] = ""
+        _write_csv(df, DAILY_PLAN_FILE)
 
 
 def load_ingredients() -> pd.DataFrame:
@@ -579,10 +591,11 @@ def search_archive_menu_ids(keyword: str) -> list[str]:
 
 
 def dates_with_menus() -> set[str]:
-    """All dates that have any saved menu (plan or archive)."""
+    """All dates that have any saved menu for the current user."""
+    from src.client_profile import plan_user_key
     from src.meal_plan_dates import meal_plan_date_markers
 
-    return set(meal_plan_date_markers().keys())
+    return set(meal_plan_date_markers(plan_user_key()).keys())
 
 
 def get_log_dates() -> set[str]:
@@ -1168,6 +1181,16 @@ def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
         return None
     rows = df[(df["date"] == day) & (df["user_key"] == user_key)]
     if rows.empty:
+        legacy = df[
+            (df["date"] == day)
+            & (df["user_key"].astype(str).str.strip().isin(["", "nan", "None"]))
+        ]
+        if not legacy.empty:
+            rows = legacy
+            idx = rows.index[-1]
+            df.at[idx, "user_key"] = user_key
+            _write_csv(df, DAILY_PLAN_FILE)
+    if rows.empty:
         return None
     row = rows.iloc[-1]
     plan = _plan_dict_from_row(row)
@@ -1187,9 +1210,18 @@ def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
 
 
 def list_meal_plan_dates(*, confirmed_only: bool = False) -> list[str]:
+    from src.client_profile import plan_user_key
+
+    user_key = plan_user_key()
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     if df.empty:
         return []
+    if user_key:
+        scoped = df[
+            (df["user_key"] == user_key)
+            | (df["user_key"].astype(str).str.strip().isin(["", "nan", "None"]))
+        ]
+        df = scoped if not scoped.empty else df
     if confirmed_only:
         df = df[df["confirmed"].astype(str).str.lower().isin(["true", "1", "yes"])]
     dates = sorted(df["date"].astype(str).unique().tolist(), reverse=True)

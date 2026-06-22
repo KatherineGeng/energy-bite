@@ -6,15 +6,19 @@ from src.database import DAILY_PLAN_COLUMNS, _parse_plan_column, _read_csv, arch
 from src.constants import DAILY_PLAN_FILE
 
 
-def meal_plan_date_markers() -> dict[str, str]:
-    """Return {iso_date: status} for dates that have saved menus."""
+def meal_plan_date_markers(user_key: str = "") -> dict[str, str]:
+    """Return {iso_date: status} for dates that have saved menus (optionally scoped by user)."""
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     markers: dict[str, str] = {}
+    uk = str(user_key or "").strip()
 
     if not df.empty:
         for _, row in df.iterrows():
             day = str(row.get("date", "")).strip()
             if not day:
+                continue
+            row_uk = str(row.get("user_key", "")).strip()
+            if uk and row_uk and row_uk != uk:
                 continue
             ids = (
                 _parse_plan_column(row.get("breakfast", ""))
@@ -38,8 +42,9 @@ def markers_with_today(
     *,
     today_has_menu: bool,
     today_confirmed: bool,
+    user_key: str = "",
 ) -> dict[str, str]:
-    markers = meal_plan_date_markers()
+    markers = meal_plan_date_markers(user_key)
     if today_has_menu:
         markers[today_iso] = "confirmed" if today_confirmed else "draft"
     return markers

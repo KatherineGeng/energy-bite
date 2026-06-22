@@ -18,6 +18,7 @@ NAV_ITEMS = [
     ("morning", "☀️", "菜单"),
     ("night", "🍃", "回顾"),
     ("export", "📤", "分享"),
+    ("mine", "👤", "我的"),
 ]
 
 MENU_GEN_ICON = (
@@ -99,7 +100,7 @@ def inject_mobile_css() -> None:
         .eb-bottom-nav .eb-nav-link {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            max-width: 33.33% !important;
+            max-width: 25% !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -107,7 +108,7 @@ def inject_mobile_css() -> None:
             gap: 0.12rem !important;
             text-decoration: none !important;
             padding: 0.28rem 0 !important;
-            font-size: 0.78rem !important;
+            font-size: 0.72rem !important;
             line-height: 1.1 !important;
             color: #64748B !important;
             background: transparent !important;

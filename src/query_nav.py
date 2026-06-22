@@ -40,9 +40,8 @@ def apply_query_nav(valid_pages: set[str]) -> None:
         st.session_state.export_action_panel = "poster"
     elif export_tab == "import":
         st.session_state.export_action_panel = "import"
-    elif export_tab in ("past", "calendar", "history", "trail", "favorites"):
-        # Asset tabs — keep action panel state; user switches tab manually.
-        pass
+    elif export_tab == "trail":
+        st.session_state.export_action_panel = "trail"
 
     nav = st.query_params.get("nav")
     if isinstance(nav, list):

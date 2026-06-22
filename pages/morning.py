@@ -101,6 +101,14 @@ def _persist_plan(plan: dict[str, list[str]], *, confirmed: bool) -> None:
     saved = load_daily_meal_plan(today)
     if saved:
         st.session_state.eb_plan_snapshots = saved.get("snapshots", {})
+    from src.plan_bootstrap import persist_plan_to_browser
+
+    persist_plan_to_browser(
+        today,
+        plan,
+        confirmed=confirmed,
+        snapshots=st.session_state.get("eb_plan_snapshots", {}),
+    )
 
 
 def _menu_snapshots() -> dict:
@@ -736,7 +744,7 @@ def render() -> None:
         st.success("今日就餐计划已确认 · 可前往「回顾」填写评价。")
 
     if st.session_state.pop("menu_fav_flash", False):
-        st.success("已收藏此套菜单 · 可在「分享 → 我的收藏 → 全天菜单」查看。")
+        st.success("已收藏此套菜单 · 可在「我的 → 全天菜单」查看。")
 
     morning = _get_morning_inputs()
     meal_count = int(morning.get("meal_count", st.session_state.get("morning_meal_count", 3)))

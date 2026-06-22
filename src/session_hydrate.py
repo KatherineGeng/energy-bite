@@ -9,6 +9,8 @@ import streamlit as st
 from src.client_profile import plan_user_key
 from src.database import load_daily_meal_plan, load_morning_context
 from src.meal_plan_utils import empty_meal_plan
+from src.plan_bootstrap import plan_from_query_token
+from src.query_nav import clear_query_key, qp_first
 
 
 def clear_menu_session_state() -> None:
@@ -27,6 +29,22 @@ def clear_menu_session_state() -> None:
     st.session_state._hydrated_user = None
 
 
+def _apply_saved_plan(saved: dict) -> None:
+    plan = saved["plan"]
+    st.session_state.meal_plan = plan
+    st.session_state.current_day_menus = saved["menu_ids"]
+    st.session_state.today_recommendations = saved["menu_ids"]
+    st.session_state.eb_plan_snapshots = saved.get("snapshots", {})
+    if saved["confirmed"]:
+        st.session_state.menu_locked = True
+        st.session_state.final_meal_plan = {k: list(v) for k, v in plan.items()}
+        st.session_state.final_daily_list = list(saved["menu_ids"])
+    else:
+        st.session_state.menu_locked = False
+        st.session_state.final_meal_plan = empty_meal_plan()
+        st.session_state.final_daily_list = []
+
+
 def hydrate_today_state() -> None:
     today = date.today().isoformat()
     user_key = plan_user_key()
@@ -38,24 +56,21 @@ def hydrate_today_state() -> None:
     if (
         st.session_state.get("_hydrated_date") == today
         and st.session_state.get("_hydrated_user") == user_key
+        and st.session_state.get("meal_plan")
+        and any(st.session_state.meal_plan.get(m) for m in ("早餐", "午餐", "晚餐"))
     ):
         return
 
     saved_plan = load_daily_meal_plan(today)
+    if not saved_plan:
+        token_plan = plan_from_query_token()
+        if token_plan and token_plan.get("date") == today:
+            saved_plan = token_plan
+            if qp_first("ebplan"):
+                clear_query_key("ebplan")
+
     if saved_plan:
-        plan = saved_plan["plan"]
-        st.session_state.meal_plan = plan
-        st.session_state.current_day_menus = saved_plan["menu_ids"]
-        st.session_state.today_recommendations = saved_plan["menu_ids"]
-        st.session_state.eb_plan_snapshots = saved_plan.get("snapshots", {})
-        if saved_plan["confirmed"]:
-            st.session_state.menu_locked = True
-            st.session_state.final_meal_plan = {k: list(v) for k, v in plan.items()}
-            st.session_state.final_daily_list = list(saved_plan["menu_ids"])
-        else:
-            st.session_state.menu_locked = False
-            st.session_state.final_meal_plan = empty_meal_plan()
-            st.session_state.final_daily_list = []
+        _apply_saved_plan(saved_plan)
     else:
         st.session_state.meal_plan = empty_meal_plan()
         st.session_state.current_day_menus = []

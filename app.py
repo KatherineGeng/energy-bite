@@ -73,10 +73,17 @@ if "ai_fresh_menu_ids" not in st.session_state:
 if "export_action_panel" not in st.session_state:
     st.session_state.export_action_panel = None
 
-VALID_PAGES = {"morning", "night", "export", "admin"}
+if "poster_history" not in st.session_state:
+    st.session_state.poster_history = []
+
+VALID_PAGES = {"morning", "night", "export", "mine", "admin"}
 apply_query_nav(VALID_PAGES)
 restore_profile_from_browser()
 sync_profile_from_url()
+
+from src.plan_bootstrap import restore_plan_from_browser
+
+restore_plan_from_browser()
 
 _page = st.session_state.current_page
 _is_admin = _page == "admin" or qp_first("nav") == "admin"
@@ -102,6 +109,10 @@ elif _page == "admin":
     from pages import admin
 
     admin.render()
+elif _page == "mine":
+    from pages import mine
+
+    mine.render()
 else:
     from pages import export_poster
 
