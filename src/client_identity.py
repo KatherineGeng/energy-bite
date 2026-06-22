@@ -7,8 +7,7 @@ import uuid
 import streamlit as st
 
 
-def client_ip() -> str:
-    """Best-effort client key for profile lookup."""
+def _detect_client_key() -> str:
     try:
         ip = getattr(st.context, "ip_address", None)
         if ip:
@@ -30,3 +29,18 @@ def client_ip() -> str:
     if "eb_client_token" not in st.session_state:
         st.session_state.eb_client_token = uuid.uuid4().hex[:16]
     return f"session-{st.session_state.eb_client_token}"
+
+
+def client_ip() -> str:
+    """Stable per-browser key for profile lookup."""
+    if st.session_state.get("eb_client_key"):
+        return str(st.session_state.eb_client_key)
+    key = _detect_client_key()
+    st.session_state.eb_client_key = key
+    return key
+
+
+def bind_client_key(key: str) -> None:
+    """Pin profile key for this session after onboarding."""
+    st.session_state.eb_client_key = str(key).strip()
+    st.session_state.eb_profile_done = True

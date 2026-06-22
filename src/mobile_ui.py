@@ -37,8 +37,17 @@ def inject_mobile_css() -> None:
     st.markdown(
         f"""
         <style>
+        header[data-testid="stHeader"] {{
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            visibility: hidden !important;
+        }}
+        .stApp {{
+            padding-top: env(safe-area-inset-top, 0px) !important;
+        }}
         .block-container {{
-            padding: 0.25rem max(0.65rem, env(safe-area-inset-left)) calc(3.6rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
+            padding: max(1.1rem, env(safe-area-inset-top, 0px) + 0.5rem) max(0.65rem, env(safe-area-inset-left)) calc(3.6rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
         }}
         [data-testid="stToolbar"],
         [data-testid="stToolbarActions"],
@@ -222,6 +231,7 @@ def inject_mobile_css() -> None:
         .eb-app-header {{
             text-align: center;
             margin: 0 0 0.45rem;
+            padding-top: 0.15rem;
         }}
         .eb-title-version {{
             display: block;
@@ -347,6 +357,11 @@ def render_top_header(for_date: date | None = None) -> None:
     )
 
 
+def _action_href(act: str) -> str:
+    page = st.session_state.get("current_page", "morning")
+    return f"?nav={quote(page)}&act={quote(act)}"
+
+
 def render_action_row(
     items: list[tuple[str, str, str, bool, bool]],
 ) -> None:
@@ -362,7 +377,7 @@ def render_action_row(
         if disabled:
             parts.append(f'<span class="{cls}">{inner}</span>')
         else:
-            parts.append(f'<a class="{cls}" href="?act={act}">{inner}</a>')
+            parts.append(f'<a class="{cls}" href="{_action_href(act)}">{inner}</a>')
     st.markdown(f'<div class="eb-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
@@ -379,7 +394,7 @@ def render_primary_action_link(
     if disabled:
         st.markdown(f'<div style="text-align:center"><span class="{cls} disabled">{inner}</span></div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div style="text-align:center"><a class="{cls}" href="?act={act}">{inner}</a></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center"><a class="{cls}" href="{_action_href(act)}">{inner}</a></div>', unsafe_allow_html=True)
 
 
 def render_meal_action_row(

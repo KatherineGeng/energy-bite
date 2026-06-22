@@ -526,11 +526,25 @@ def load_user_profile(client_ip: str = "") -> dict[str, Any] | None:
     if df.empty:
         return None
     ip = str(client_ip or "").strip()
-    if ip:
-        hits = df[df["client_ip"].astype(str).str.strip() == ip]
-        if not hits.empty:
-            row = hits.iloc[-1]
-            return {col: str(row[col]) for col in USER_PROFILE_COLUMNS}
+    if not ip:
+        return None
+
+    hits = df[df["client_ip"].astype(str).str.strip() == ip]
+    if not hits.empty:
+        row = hits.iloc[-1]
+        return {col: str(row[col]) for col in USER_PROFILE_COLUMNS}
+
+    blank = df[
+        (df["client_ip"].astype(str).str.strip() == "")
+        & (df["nickname"].astype(str).str.strip() != "")
+    ]
+    if len(blank) == 1:
+        idx = blank.index[-1]
+        df.at[idx, "client_ip"] = ip
+        _write_csv(df, USER_PROFILE_FILE)
+        row = df.loc[idx]
+        return {col: str(row[col]) for col in USER_PROFILE_COLUMNS}
+
     return None
 
 

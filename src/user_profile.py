@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.client_identity import client_ip as _client_ip
+from src.client_identity import bind_client_key, client_ip as _client_ip
 from src.constants import AGE_GROUP_OPTIONS, GENDER_OPTIONS
 from src.database import load_user_profile, save_user_profile
 
 
 def profile_complete() -> bool:
+    if st.session_state.get("eb_profile_done"):
+        return True
     row = load_user_profile(_client_ip())
-    return bool(row and str(row.get("nickname", "")).strip())
+    if row and str(row.get("nickname", "")).strip():
+        st.session_state.eb_profile_done = True
+        return True
+    return False
 
 
 def nickname() -> str:
@@ -49,7 +54,8 @@ def render_onboarding() -> bool:
         if not text:
             st.warning("请填写昵称。")
             return False
-        save_user_profile(text, gender, age_group, _client_ip())
-        st.session_state.user_profile_loaded = True
+        key = _client_ip()
+        save_user_profile(text, gender, age_group, key)
+        bind_client_key(key)
         st.rerun()
     return False
