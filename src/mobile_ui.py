@@ -156,6 +156,21 @@ def inject_mobile_css() -> None:
         .eb-bottom-action-row {{
             margin: 0.75rem 0 0.5rem !important;
         }}
+        .eb-meal-action-row.eb-meal-actions-1 {{
+            justify-content: flex-start !important;
+        }}
+        .eb-meal-action-row.eb-meal-actions-1 .eb-meal-action-btn {{
+            flex: 0 0 32% !important;
+            max-width: 32% !important;
+        }}
+        .eb-meal-action-row.eb-meal-actions-2 .eb-meal-action-btn {{
+            flex: 1 1 0 !important;
+        }}
+        .eb-meal-action-row.eb-meal-actions-3 .eb-meal-action-btn {{
+            flex: 1 1 0 !important;
+            font-size: 0.78rem !important;
+            padding: 0.5rem 0.08rem !important;
+        }}
         .eb-meal-action-btn {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
@@ -436,11 +451,15 @@ def render_meal_action_row(
     items: list[tuple[str, str, str | None]],
 ) -> None:
     """Horizontal meal edit links: (act_key, label, menu_id or None)."""
+    n = len(items)
     parts: list[str] = []
     for act, label, menu_id in items:
         href = _meal_action_href(act, meal_type, menu_id)
         parts.append(f'<a class="eb-meal-action-btn" href="{href}">{label}</a>')
-    st.markdown(f'<div class="eb-meal-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="eb-meal-action-row eb-meal-actions-{n}">{"".join(parts)}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_bottom_nav(current_page: str | None = None) -> None:
