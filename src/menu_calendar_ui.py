@@ -8,6 +8,8 @@ from urllib.parse import urlencode
 
 import streamlit as st
 
+from src.nav_params import append_nav_params
+
 
 def _month_first(year: int, month: int) -> date:
     return date(year, month, 1)
@@ -53,7 +55,7 @@ def render_menu_calendar(
 
     def _link(params: dict[str, str]) -> str:
         merged = {**extra, **params}
-        return "?" + urlencode(merged)
+        return append_nav_params("?" + urlencode(merged))
 
     prev_m = view_month - 1
     prev_y = view_year

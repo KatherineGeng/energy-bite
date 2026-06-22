@@ -37,6 +37,7 @@ from src.mobile_ui import (
     render_meal_action_row,
     render_primary_action_link,
 )
+from src.nav_params import append_nav_params
 from src.query_nav import pop_query_param
 from src.recommendation import format_ingredient_names, get_daily_menus
 from src.theme import section_title
@@ -49,7 +50,7 @@ def _page_query_href(**params: str) -> str:
     for key, val in params.items():
         if val:
             parts.append(f"{quote(key)}={quote(val)}")
-    return "?" + "&".join(parts)
+    return append_nav_params("?" + "&".join(parts))
 
 
 def _render_link_row(links: list[tuple[str, str, str]]) -> None:

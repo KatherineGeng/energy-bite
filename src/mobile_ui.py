@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 from src.calendar_utils import display_version, format_today_cn
 from src.constants import APP_VERSION
+from src.nav_params import append_nav_params
 from src.theme import ACCENT, TEXT
 from src.user_profile import nickname
 
@@ -365,7 +366,7 @@ def render_top_header(for_date: date | None = None) -> None:
 
 def _action_href(act: str) -> str:
     page = st.session_state.get("current_page", "morning")
-    return f"?nav={quote(page)}&act={quote(act)}"
+    return append_nav_params(f"?nav={quote(page)}&act={quote(act)}")
 
 
 def render_action_row(
@@ -408,7 +409,7 @@ def _meal_action_href(meal_act: str, meal_type: str, menu_id: str | None = None)
     href = f"?nav={quote(page)}&meal_act={quote(meal_act)}&meal={quote(meal_type)}"
     if menu_id:
         href += f"&mid={quote(menu_id)}"
-    return href
+    return append_nav_params(href)
 
 
 def render_meal_action_row(
@@ -430,7 +431,7 @@ def render_bottom_nav(current_page: str | None = None) -> None:
     for page_id, icon, label in NAV_ITEMS:
         active = " active" if page_id == page else ""
         parts.append(
-            f'<a class="eb-nav-link{active}" href="?nav={page_id}">'
+            f'<a class="eb-nav-link{active}" href="{append_nav_params(f"?nav={page_id}")}">'
             f'<span class="eb-nav-icon">{icon}</span>'
             f'<span class="eb-nav-label">{label}</span></a>'
         )

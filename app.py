@@ -14,6 +14,7 @@ from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_heade
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
 from src.session_hydrate import hydrate_today_state
+from src.client_profile import sync_profile_from_url
 from src.theme import inject_theme_assets
 from src.user_profile import profile_complete, render_onboarding
 
@@ -73,6 +74,7 @@ if "export_tab_key" not in st.session_state:
 
 VALID_PAGES = {"morning", "night", "export", "admin"}
 apply_query_nav(VALID_PAGES)
+sync_profile_from_url()
 
 _page = st.session_state.current_page
 

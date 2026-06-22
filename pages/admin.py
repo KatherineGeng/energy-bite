@@ -56,7 +56,10 @@ def _render_menus_tab() -> None:
 
 
 def _render_images_tab() -> None:
-    st.caption("客户上传与管理員导入的图片均保存在 App 图片库。")
+    st.caption(
+        "永久图片请放入 assets/app_gallery/ 并提交 GitHub（部署后仍在）。"
+        "下方上传为运行期追加，代码更新后可能清空。"
+    )
     uploaded = st.file_uploader(
         "管理员导入图片",
         type=["png", "jpg", "jpeg"],

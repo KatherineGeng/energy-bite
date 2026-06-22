@@ -4,25 +4,33 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.client_identity import bind_client_key, client_ip as _client_ip
+from src.client_profile import bind_profile, decode_profile, profile_token, sync_profile_from_url
 from src.constants import AGE_GROUP_OPTIONS, GENDER_OPTIONS
-from src.database import load_user_profile, save_user_profile
+from src.database import save_user_profile
 
 
 def profile_complete() -> bool:
-    if st.session_state.get("eb_profile_done"):
-        return True
-    row = load_user_profile(_client_ip())
-    if row and str(row.get("nickname", "")).strip():
-        st.session_state.eb_profile_done = True
+    sync_profile_from_url()
+    token = profile_token()
+    if not token:
+        return False
+    profile = st.session_state.get("eb_profile") or decode_profile(token)
+    if profile and str(profile.get("nickname", "")).strip():
+        st.session_state.eb_profile = profile
         return True
     return False
 
 
 def nickname() -> str:
-    row = load_user_profile(_client_ip())
-    if row:
-        return str(row.get("nickname", "")).strip()
+    sync_profile_from_url()
+    profile = st.session_state.get("eb_profile")
+    if profile:
+        return str(profile.get("nickname", "")).strip()
+    token = profile_token()
+    if token:
+        decoded = decode_profile(token)
+        if decoded:
+            return str(decoded.get("nickname", "")).strip()
     return ""
 
 
@@ -40,8 +48,20 @@ def planning_prompt() -> str:
     return "开始规划餐食，今天想吃什么？"
 
 
+def _inject_profile_storage_script(token: str) -> None:
+    st.markdown(
+        f"""
+        <script>
+        try {{
+            localStorage.setItem("eb_profile", "{token}");
+        }} catch (e) {{}}
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_onboarding() -> bool:
-    """Return True when profile saved and app may continue."""
     st.markdown("### 欢迎使用简愈一人食")
     st.caption("请填写基本信息，我们会记住您的昵称。")
 
@@ -54,8 +74,8 @@ def render_onboarding() -> bool:
         if not text:
             st.warning("请填写昵称。")
             return False
-        key = _client_ip()
-        save_user_profile(text, gender, age_group, key)
-        bind_client_key(key)
+        token = bind_profile(text, gender, age_group)
+        save_user_profile(text, gender, age_group, client_ip="local")
+        _inject_profile_storage_script(token)
         st.rerun()
     return False

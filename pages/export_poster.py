@@ -24,6 +24,7 @@ from src.database import (
 from src.export import generate_poster
 from src.image_library import render_gallery_picker, save_uploads_to_library
 from src.menu_calendar_ui import render_menu_calendar
+from src.nav_params import append_nav_params
 from src.query_nav import qp_first
 from src.session_hydrate import hydrate_today_state, menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text, encode_share_code
@@ -110,7 +111,7 @@ def _render_poster_tab() -> None:
     with col2:
         st.link_button(
             "过往菜单海报",
-            url="?nav=export&export_tab=past",
+            url=append_nav_params("?nav=export&export_tab=past"),
             use_container_width=True,
         )
 

@@ -25,6 +25,7 @@ from src.meal_plan_utils import MEAL_ORDER, empty_meal_plan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = PROJECT_ROOT / "data"
+ASSETS_GALLERY_DIR = PROJECT_ROOT / "assets" / "app_gallery"
 
 FAVORITES_DISHES_FILE = "favorites_dishes.csv"
 FAVORITES_MENUS_FILE = "favorites_menus.csv"
@@ -194,10 +195,10 @@ def init_database(force: bool = False) -> None:
     if force or not _csv_path(USER_PROFILE_FILE).exists():
         _write_csv(_empty_frame(USER_PROFILE_COLUMNS), USER_PROFILE_FILE)
 
+    APP_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    ASSETS_GALLERY_DIR.mkdir(parents=True, exist_ok=True)
     if force or not _csv_path(APP_IMAGES_FILE).exists():
         _write_csv(_empty_frame(APP_IMAGES_COLUMNS), APP_IMAGES_FILE)
-
-    APP_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
     _migrate_legacy_favorites_to_archive()
 
@@ -612,15 +613,47 @@ def save_app_image(data: bytes, *, source: str = "user", title: str = "") -> str
     return image_id
 
 
+def _static_gallery_rows() -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    if not ASSETS_GALLERY_DIR.is_dir():
+        return rows
+    for path in sorted(ASSETS_GALLERY_DIR.iterdir()):
+        if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+            continue
+        rows.append(
+            {
+                "image_id": f"STATIC_{path.stem}",
+                "filename": path.name,
+                "source": "static",
+                "title": path.stem,
+                "created_at": "",
+                "data_b64": "",
+            }
+        )
+    return rows
+
+
 def list_app_images() -> list[dict[str, str]]:
+    static_rows = _static_gallery_rows()
     df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)
     if df.empty:
-        return []
+        return static_rows
     df = df.sort_values("created_at", ascending=False)
-    return [dict(row) for _, row in df.iterrows()]
+    runtime = [dict(row) for _, row in df.iterrows()]
+    static_ids = {r["image_id"] for r in static_rows}
+    runtime = [r for r in runtime if str(r.get("image_id", "")) not in static_ids]
+    return static_rows + runtime
 
 
 def get_app_image_bytes(image_id: str) -> bytes | None:
+    if str(image_id).startswith("STATIC_"):
+        stem = str(image_id)[7:]
+        if ASSETS_GALLERY_DIR.is_dir():
+            for path in ASSETS_GALLERY_DIR.iterdir():
+                if path.stem == stem and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                    return path.read_bytes()
+        return None
+
     df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)
     if df.empty:
         return None
