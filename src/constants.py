@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Bump this on every deploy so users can verify Streamlit Cloud picked up the build.
-APP_VERSION = "v4.2.3"
+APP_VERSION = "v4.2.4"
 
 # Canonical nutrition categories for radar chart (7 axes)
 NUTRITION_CATEGORIES = [

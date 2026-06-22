@@ -81,9 +81,11 @@ def inject_pwa_head() -> None:
         </script>
         """
 
+    wrapped = f'<div style="display:none;height:0;overflow:hidden;margin:0;padding:0;">{snippet}</div>'
+
     if hasattr(st, "html"):
-        st.html(snippet, height=0, width=0)
+        st.html(wrapped)
     else:
         import streamlit.components.v1 as components
 
-        components.html(snippet, height=0, width=0)
+        components.html(wrapped, height=0, width=0)
