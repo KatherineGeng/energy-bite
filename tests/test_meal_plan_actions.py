@@ -113,6 +113,16 @@ def test_daily_plan_stores_menu_snapshots(tmp_path, monkeypatch):
     assert row["menu_name"] == "盐姜西兰花"
 
 
+def test_append_manual_dedupes_by_name(tmp_path, monkeypatch):
+    _setup_tmp_data(tmp_path, monkeypatch)
+    first_id = db.append_manual_menu("萝卜鲫鱼汤", meal_type="午餐")
+    second_id = db.append_manual_menu("萝卜鲫鱼汤", meal_type="晚餐")
+    assert first_id == second_id
+    hits = db.search_menus_by_keyword("萝卜鲫鱼汤")
+    assert len(hits) == 1
+    assert hits.iloc[0]["menu_id"] == first_id
+
+
 def test_plan_from_menu_ids_respects_slot(tmp_path, monkeypatch):
     _setup_tmp_data(tmp_path, monkeypatch)
     manual_id = db.append_manual_menu("午餐汤", meal_type="午餐")

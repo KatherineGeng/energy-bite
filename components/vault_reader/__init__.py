@@ -1,0 +1,1 @@
+"""Vault reader component package."""

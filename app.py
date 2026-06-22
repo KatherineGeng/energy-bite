@@ -81,9 +81,13 @@ apply_query_nav(VALID_PAGES)
 restore_profile_from_browser()
 sync_profile_from_url()
 
+from src.user_vault import ensure_vault_synced
 from src.plan_bootstrap import restore_plan_from_browser
+from src.menu_bootstrap import restore_menus_from_browser
 
+ensure_vault_synced()
 restore_plan_from_browser()
+restore_menus_from_browser()
 
 _page = st.session_state.current_page
 _is_admin = _page == "admin" or qp_first("nav") == "admin"

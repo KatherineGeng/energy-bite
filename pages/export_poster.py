@@ -115,6 +115,9 @@ def _append_poster_history(date_str: str, menu_ids: list[str], share_text: str =
     history = [h for h in history if h.get("date") != date_str]
     history.insert(0, entry)
     st.session_state.poster_history = history[:20]
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
 
 
 def _record_shared_menus(day: str, menu_ids: list[str]) -> None:

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <style>html, body { margin: 0; padding: 0; background: transparent; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@2.0.0/dist/index.js"></script>
+</head>
+<body>
+<script>
+  function readSection(userKey, section) {
+    try {
+      return localStorage.getItem("eb_v_" + userKey + "_" + section);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function render() {
+    const args = window.streamlitArgs || {};
+    const userKey = args.user_key || "";
+    if (!userKey) {
+      Streamlit.setComponentValue("{}");
+      return;
+    }
+    const sections = ["menus", "logs", "plans", "morning", "fav_dishes", "fav_menus", "posters"];
+    const out = {};
+    sections.forEach(function (s) {
+      const v = readSection(userKey, s);
+      if (v) out[s] = v;
+    });
+    try {
+      const legacyMenus = localStorage.getItem("eb_user_menus_" + userKey);
+      if (legacyMenus && !out.menus) out.menus = legacyMenus;
+    } catch (e) {}
+    Streamlit.setComponentValue(JSON.stringify(out));
+  }
+
+  Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, render);
+  render();
+</script>
+</body>
+</html>

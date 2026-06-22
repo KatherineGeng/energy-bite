@@ -44,6 +44,7 @@ MENU_COLUMNS = [
 LOG_COLUMNS = [
     "log_id",
     "date",
+    "user_key",
     "menu_id",
     "taste_score",
     "operation_score",
@@ -199,6 +200,11 @@ def init_database(force: bool = False) -> None:
     if force or not _csv_path(DAILY_PLAN_FILE).exists():
         _write_csv(_empty_frame(DAILY_PLAN_COLUMNS), DAILY_PLAN_FILE)
 
+    from src.menu_persistence import USER_MENUS_COLUMNS, USER_MENUS_FILE
+
+    if force or not _csv_path(USER_MENUS_FILE).exists():
+        _write_csv(_empty_frame(USER_MENUS_COLUMNS), USER_MENUS_FILE)
+
     if force or not _csv_path(MENU_ARCHIVE_FILE).exists():
         _write_csv(_empty_frame(MENU_ARCHIVE_COLUMNS), MENU_ARCHIVE_FILE)
 
@@ -230,6 +236,12 @@ def load_ingredients() -> pd.DataFrame:
 
 
 def load_menus() -> pd.DataFrame:
+    try:
+        from src.menu_persistence import ensure_user_menus_rehydrated
+
+        ensure_user_menus_rehydrated()
+    except Exception:
+        pass
     df = _read_csv(MENU_FILE, MENU_COLUMNS)
     if not df.empty and "prep_minutes" in df.columns:
         df["prep_minutes"] = pd.to_numeric(df["prep_minutes"], errors="coerce").fillna(0).astype(int)
@@ -307,9 +319,14 @@ def append_log(
     seq = len(same_day) + 1
     log_id = f"LOG_{date.replace('-', '')}_{seq:03d}"
 
+    from src.client_profile import plan_user_key
+
+    user_key = plan_user_key() or ""
+
     row = {
         "log_id": log_id,
         "date": date,
+        "user_key": user_key,
         "menu_id": menu_id,
         "taste_score": nps_score,
         "operation_score": operation_score,
@@ -322,6 +339,9 @@ def append_log(
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, LOG_FILE)
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
     return log_id
 
 
@@ -333,9 +353,19 @@ def get_ingredient_map() -> dict[str, dict[str, str]]:
 def get_menu_by_id(menu_id: str) -> dict[str, Any] | None:
     df = load_menus()
     match = df[df["menu_id"] == menu_id]
-    if match.empty:
-        return None
-    return match.iloc[0].to_dict()
+    if not match.empty:
+        return match.iloc[0].to_dict()
+    try:
+        from src.menu_persistence import load_user_menu_archive
+
+        archive = load_user_menu_archive()
+        if not archive.empty:
+            match = archive[archive["menu_id"].astype(str) == str(menu_id)]
+            if not match.empty:
+                return match.iloc[0].to_dict()
+    except Exception:
+        pass
+    return None
 
 
 def _snapshot_from_row(row: dict[str, Any]) -> dict[str, str]:
@@ -862,6 +892,9 @@ def save_favorite_dish(menu_id: str, date: str) -> None:
     legacy = pd.concat([legacy, pd.DataFrame([row])], ignore_index=True)
     _write_csv(legacy, FAVORITES_DISHES_FILE)
     record_menu_archive(date, [menu_id], is_favorited=True)
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
 
 
 def remove_favorite_dish(menu_id: str, date: str) -> None:
@@ -894,6 +927,9 @@ def save_favorite_menu_set(menu_ids: list[str], date: str) -> None:
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, FAVORITES_MENUS_FILE)
     record_menu_archive(date, menu_ids, is_favorited=True)
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
 
 
 def next_menu_id() -> str:
@@ -952,12 +988,14 @@ def get_menus_by_pick_frequency() -> pd.DataFrame:
 
 
 def search_menus_by_keyword(query: str, limit: int = 12) -> pd.DataFrame:
-    """Fuzzy match menu names in the library (case-insensitive substring)."""
+    """Fuzzy match menu names in library + user archive (case-insensitive substring)."""
     q = query.strip()
     if not q:
         return _empty_frame(MENU_COLUMNS)
 
-    menus = load_menus()
+    from src.menu_persistence import merged_menu_library
+
+    menus = merged_menu_library()
     if menus.empty:
         return menus
 
@@ -1044,8 +1082,15 @@ def append_manual_menu(
     meal_type: str = "午餐",
     nutrition_categories: list[str] | None = None,
 ) -> str:
-    """Create a hand-entered dish in the menu library."""
+    """Create a hand-entered dish in the menu library (reuses existing row if same name)."""
     from src.nutrition_api import encode_nutrition_description
+    from src.menu_persistence import find_menu_by_name, persist_menu_record
+
+    name = menu_name.strip()
+    existing = find_menu_by_name(name)
+    if existing:
+        persist_menu_record(existing, source="manual")
+        return str(existing["menu_id"])
 
     if ingredient_ids is not None:
         ids = list(ingredient_ids)
@@ -1076,7 +1121,7 @@ def append_manual_menu(
 
     row = {
         "menu_id": menu_id,
-        "menu_name": menu_name.strip(),
+        "menu_name": name,
         "ingredient_ids": ids_text,
         "energy_tags": tags_text,
         "meal_type": meal_type,
@@ -1085,6 +1130,8 @@ def append_manual_menu(
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, MENU_FILE)
+
+    persist_menu_record(row, source="manual")
     return menu_id
 
 
@@ -1110,6 +1157,15 @@ def append_menu_from_share(
     if not menu_name:
         menu_name = f"{tags[0]}组合" if tags else "好友分享菜单"
 
+    from src.menu_persistence import find_menu_by_name, persist_menu_record
+
+    existing = find_menu_by_name(menu_name.strip())
+    if existing:
+        persist_menu_record(existing, source="import")
+        today = datetime.now().date().isoformat()
+        record_menu_archive(today, [str(existing["menu_id"])], is_imported=True)
+        return str(existing["menu_id"])
+
     row = {
         "menu_id": menu_id,
         "menu_name": menu_name,
@@ -1121,6 +1177,8 @@ def append_menu_from_share(
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, MENU_FILE)
+
+    persist_menu_record(row, source="import")
     today = datetime.now().date().isoformat()
     record_menu_archive(today, [menu_id], is_imported=True)
     return menu_id
@@ -1175,6 +1233,16 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
         df = df[~mask]
         out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(out[DAILY_PLAN_COLUMNS], DAILY_PLAN_FILE)
+
+    from src.menu_persistence import persist_menu_record
+
+    src_tag = "confirmed_plan" if confirmed else "draft_plan"
+    for mid, snap in snapshots.items():
+        if snap.get("menu_name"):
+            persist_menu_record({"menu_id": mid, **snap}, source=src_tag, sync_browser=False)
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
 
 
 def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
@@ -1282,3 +1350,6 @@ def save_morning_context(day: str, sleep: str, load: str, meal_count: int) -> No
         df = df[~mask]
         out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(out[MORNING_CONTEXT_COLUMNS], MORNING_CONTEXT_FILE)
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
