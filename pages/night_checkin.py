@@ -10,7 +10,7 @@ from src.algorithm import recalculate_weights
 from src.constants import LOAD_OPTIONS, MEAL_COUNT_OPTIONS, SLEEP_OPTIONS
 from src.database import (
     append_log,
-    get_menu_by_id,
+    get_menu_row,
     init_database,
     save_favorite_dish,
     save_favorite_menu_set,
@@ -239,8 +239,9 @@ def _render_evening_section(confirmed: dict) -> None:
     section_title("fa-utensils", "今日餐食评价")
 
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
+    snapshots = confirmed.get("snapshots", {})
     for menu_id in menu_ids:
-        menu_row = get_menu_by_id(menu_id)
+        menu_row = get_menu_row(menu_id, snapshots)
         if not menu_row:
             continue
 

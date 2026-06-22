@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -88,7 +89,16 @@ APP_IMAGES_FILE = "app_images.csv"
 APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at", "data_b64"]
 APP_IMAGES_DIR = DATA_PATH / "app_images"
 MORNING_CONTEXT_COLUMNS = ["date", "user_key", "sleep", "load", "meal_count", "updated_at"]
-DAILY_PLAN_COLUMNS = ["date", "user_key", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
+DAILY_PLAN_COLUMNS = [
+    "date",
+    "user_key",
+    "breakfast",
+    "lunch",
+    "dinner",
+    "confirmed",
+    "updated_at",
+    "snapshots",
+]
 
 SEED_INGREDIENTS = """id,name,nutrition_category,role,notes
 ING_001,希腊酸奶(无糖),高钙|优质脂肪,主食|加餐,肠脑轴调节，提供色氨酸
@@ -314,6 +324,65 @@ def get_menu_by_id(menu_id: str) -> dict[str, Any] | None:
     if match.empty:
         return None
     return match.iloc[0].to_dict()
+
+
+def _snapshot_from_row(row: dict[str, Any]) -> dict[str, str]:
+    return {
+        "menu_name": str(row.get("menu_name", "")),
+        "meal_type": str(row.get("meal_type", "")),
+        "description": str(row.get("description", "")),
+        "prep_minutes": str(row.get("prep_minutes", "15")),
+        "ingredient_ids": str(row.get("ingredient_ids", "")),
+        "energy_tags": str(row.get("energy_tags", "")),
+    }
+
+
+def _parse_plan_snapshots(raw: str) -> dict[str, dict[str, str]]:
+    text = str(raw or "").strip()
+    if not text or text.lower() == "nan":
+        return {}
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return {str(k): dict(v) for k, v in data.items() if isinstance(v, dict)}
+    except json.JSONDecodeError:
+        pass
+    return {}
+
+
+def _build_plan_snapshots(
+    plan: dict[str, list[str]],
+    existing: dict[str, dict[str, str]] | None = None,
+) -> dict[str, dict[str, str]]:
+    from src.meal_plan_utils import flatten_plan
+
+    snaps = dict(existing or {})
+    for menu_id in flatten_plan(plan):
+        if menu_id in snaps and snaps[menu_id].get("menu_name"):
+            continue
+        row = get_menu_by_id(menu_id)
+        if row:
+            snaps[menu_id] = _snapshot_from_row(row)
+    return snaps
+
+
+def get_menu_row(menu_id: str, snapshots: dict[str, dict[str, str]] | None = None) -> dict[str, Any] | None:
+    """Menu from library, or from saved plan snapshot when library row is missing."""
+    row = get_menu_by_id(menu_id)
+    if row:
+        return row
+    snap = (snapshots or {}).get(menu_id)
+    if not snap:
+        return None
+    return {
+        "menu_id": menu_id,
+        "menu_name": snap.get("menu_name", menu_id),
+        "meal_type": snap.get("meal_type", "午餐"),
+        "description": snap.get("description", ""),
+        "prep_minutes": int(snap.get("prep_minutes") or 15),
+        "ingredient_ids": snap.get("ingredient_ids", ""),
+        "energy_tags": snap.get("energy_tags", ""),
+    }
 
 
 def get_logs_for_date(date: str) -> pd.DataFrame:
@@ -1045,6 +1114,14 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
         return
 
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+    prev_snaps: dict[str, dict[str, str]] = {}
+    if not df.empty:
+        mask = (df["date"] == day) & (df["user_key"] == user_key)
+        prev_rows = df[mask]
+        if not prev_rows.empty:
+            prev_snaps = _parse_plan_snapshots(str(prev_rows.iloc[-1].get("snapshots", "")))
+
+    snapshots = _build_plan_snapshots(plan, prev_snaps)
     row = {
         "date": day,
         "user_key": user_key,
@@ -1053,6 +1130,7 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
         "dinner": "|".join(plan.get("晚餐", [])),
         "confirmed": "true" if confirmed else "false",
         "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "snapshots": json.dumps(snapshots, ensure_ascii=False),
     }
     if df.empty:
         out = pd.DataFrame([row])
@@ -1082,12 +1160,14 @@ def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
     for meal in MEAL_ORDER:
         menu_ids.extend(plan.get(meal, []))
     confirmed = str(row.get("confirmed", "")).lower() in ("true", "1", "yes")
+    snapshots = _parse_plan_snapshots(str(row.get("snapshots", "")))
     return {
         "date": day,
         "plan": plan,
         "menu_ids": menu_ids,
         "confirmed": confirmed,
         "updated_at": str(row.get("updated_at", "")),
+        "snapshots": snapshots,
     }
 
 

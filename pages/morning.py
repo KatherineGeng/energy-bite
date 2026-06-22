@@ -13,8 +13,10 @@ from src.database import (
     append_manual_menu,
     get_ingredient_map,
     get_menu_by_id,
+    get_menu_row,
     get_menus_by_pick_frequency,
     init_database,
+    load_daily_meal_plan,
     load_morning_context,
     save_daily_meal_plan,
     save_favorite_menu_set,
@@ -95,6 +97,17 @@ def _plan_from_menu_ids(menu_ids: list[str]) -> dict[str, list[str]]:
 def _persist_plan(plan: dict[str, list[str]], *, confirmed: bool) -> None:
     today = st.session_state.get("today_date", date.today().isoformat())
     save_daily_meal_plan(today, plan, confirmed=confirmed)
+    saved = load_daily_meal_plan(today)
+    if saved:
+        st.session_state.eb_plan_snapshots = saved.get("snapshots", {})
+
+
+def _menu_snapshots() -> dict:
+    return st.session_state.get("eb_plan_snapshots", {})
+
+
+def _resolve_menu(menu_id: str) -> dict | None:
+    return get_menu_row(menu_id, _menu_snapshots())
 
 
 def _sync_draft_from_plan(plan: dict[str, list[str]]) -> None:
@@ -596,11 +609,14 @@ def _render_meal_sections(
                 continue
 
             for idx, menu_id in enumerate(menu_ids):
-                row = get_menu_by_id(menu_id)
+                row = _resolve_menu(menu_id)
                 if not row:
                     if idx > 0:
                         st.divider()
-                    st.markdown(f"**{meal_type}** · `{menu_id}`（库内未找到，可移除）")
+                    st.markdown(
+                        f"**{meal_type}** · 手工菜记录已过期（{menu_id}）"
+                    )
+                    st.caption("服务器更新后库内记录可能清空，请点「移除」后重新添加。")
                     if not locked:
                         _render_meal_toolbar(
                             meal_type,
@@ -802,6 +818,6 @@ def render() -> None:
     _render_meal_sections(display_plan, meal_slots, locked)
 
     if st.session_state.get("eb_show_coverage"):
-        render_daily_coverage_table(display_plan, meal_slots, get_menu_by_id)
+        render_daily_coverage_table(display_plan, meal_slots, _resolve_menu)
 
     _render_bottom_action_row(locked=locked)

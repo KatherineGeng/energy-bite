@@ -91,6 +91,28 @@ def test_radish_does_not_match_carrot(tmp_path, monkeypatch):
     assert "萝卜" in unmatched or "鲫鱼" in unmatched
 
 
+def test_daily_plan_stores_menu_snapshots(tmp_path, monkeypatch):
+    _setup_tmp_data(tmp_path, monkeypatch)
+    menu_id = db.append_manual_menu(
+        "盐姜西兰花",
+        ingredients_text="西兰花、姜",
+        ingredient_ids=[],
+        meal_type="午餐",
+    )
+    plan = empty_meal_plan()
+    plan["午餐"] = [menu_id]
+    db.save_daily_meal_plan("2026-06-22", plan, confirmed=True)
+
+    loaded = db.load_daily_meal_plan("2026-06-22")
+    assert loaded is not None
+    assert menu_id in loaded["snapshots"]
+    assert loaded["snapshots"][menu_id]["menu_name"] == "盐姜西兰花"
+
+    row = db.get_menu_row(menu_id, loaded["snapshots"])
+    assert row is not None
+    assert row["menu_name"] == "盐姜西兰花"
+
+
 def test_plan_from_menu_ids_respects_slot(tmp_path, monkeypatch):
     _setup_tmp_data(tmp_path, monkeypatch)
     manual_id = db.append_manual_menu("午餐汤", meal_type="午餐")

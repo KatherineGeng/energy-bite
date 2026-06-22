@@ -22,6 +22,7 @@ def clear_menu_session_state() -> None:
     st.session_state.menu_locked = False
     st.session_state.eb_add_ui = None
     st.session_state.morning_inputs = {}
+    st.session_state.eb_plan_snapshots = {}
     st.session_state._hydrated_date = None
     st.session_state._hydrated_user = None
 
@@ -46,6 +47,7 @@ def hydrate_today_state() -> None:
         st.session_state.meal_plan = plan
         st.session_state.current_day_menus = saved_plan["menu_ids"]
         st.session_state.today_recommendations = saved_plan["menu_ids"]
+        st.session_state.eb_plan_snapshots = saved_plan.get("snapshots", {})
         if saved_plan["confirmed"]:
             st.session_state.menu_locked = True
             st.session_state.final_meal_plan = {k: list(v) for k, v in plan.items()}
@@ -61,6 +63,7 @@ def hydrate_today_state() -> None:
         st.session_state.menu_locked = False
         st.session_state.final_meal_plan = empty_meal_plan()
         st.session_state.final_daily_list = []
+        st.session_state.eb_plan_snapshots = {}
 
     ctx = load_morning_context(today)
     if ctx:
@@ -89,7 +92,13 @@ def get_confirmed_plan(day: str | None = None) -> dict | None:
         menu_ids = list(st.session_state.get("final_daily_list") or [])
         if menu_ids:
             plan = st.session_state.get("final_meal_plan") or {}
-            return {"date": target, "plan": plan, "menu_ids": menu_ids, "confirmed": True}
+            return {
+                "date": target,
+                "plan": plan,
+                "menu_ids": menu_ids,
+                "confirmed": True,
+                "snapshots": st.session_state.get("eb_plan_snapshots", {}),
+            }
     return None
 
 
