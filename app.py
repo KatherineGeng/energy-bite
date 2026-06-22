@@ -15,6 +15,7 @@ from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
 from src.session_hydrate import hydrate_today_state
 from src.theme import inject_theme_assets
+from src.user_profile import profile_complete, render_onboarding
 
 st.set_page_config(
     page_title=f"简愈一人食 {APP_VERSION}",
@@ -70,8 +71,12 @@ if "ai_fresh_menu_ids" not in st.session_state:
 if "export_tab_key" not in st.session_state:
     st.session_state.export_tab_key = "poster"
 
-VALID_PAGES = {"morning", "night", "export"}
+VALID_PAGES = {"morning", "night", "export", "admin"}
 apply_query_nav(VALID_PAGES)
+
+if not profile_complete():
+    render_onboarding()
+    st.stop()
 
 render_top_header(date.fromisoformat(st.session_state.today_date))
 
@@ -84,9 +89,14 @@ elif _page == "night":
     from pages import night_checkin
 
     night_checkin.render()
+elif _page == "admin":
+    from pages import admin
+
+    admin.render()
 else:
     from pages import export_poster
 
     export_poster.render()
 
-render_bottom_nav()
+if _page != "admin":
+    render_bottom_nav()

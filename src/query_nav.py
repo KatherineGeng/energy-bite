@@ -35,6 +35,11 @@ def pop_query_param(key: str) -> str | None:
 
 
 def apply_query_nav(valid_pages: set[str]) -> None:
+    export_tab = qp_first("export_tab")
+    if export_tab:
+        st.session_state.export_tab_key = export_tab
+        clear_query_key("export_tab")
+
     nav = st.query_params.get("nav")
     if isinstance(nav, list):
         nav = nav[0] if nav else None

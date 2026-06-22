@@ -1,4 +1,4 @@
-"""Theme — system fonts only (no external CDN, mobile-safe)."""
+"""Theme — system fonts, senior-friendly sizing."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ def inject_theme_assets() -> None:
 
         html, body, [class*="css"], .stApp {{
             font-family: {_FONT_STACK} !important;
+            font-size: 18px !important;
             color: {TEXT} !important;
             background-color: {BG} !important;
         }}
@@ -40,20 +41,23 @@ def inject_theme_assets() -> None:
         }}
 
         .eb-page-title {{
-            font-size: 1.45rem;
+            font-size: 1.65rem;
             font-weight: 600;
-            margin: 0 0 0.15rem 0;
+            margin: 0 0 0.2rem 0;
             line-height: 1.35;
         }}
 
         .eb-section-title {{
-            font-size: 1.05rem;
+            font-size: 1.25rem;
             font-weight: 600;
-            margin: 0.75rem 0 0.35rem;
+            margin: 0.85rem 0 0.45rem;
         }}
 
         .stButton > button {{
             font-family: {_FONT_STACK} !important;
+            font-size: 1.05rem !important;
+            min-height: 3rem !important;
+            padding: 0.55rem 1rem !important;
             white-space: nowrap !important;
         }}
 
@@ -61,6 +65,18 @@ def inject_theme_assets() -> None:
             background-color: {ACCENT} !important;
             border-color: {ACCENT} !important;
             color: #fff !important;
+        }}
+
+        .stCaption, [data-testid="stCaptionContainer"] {{
+            font-size: 1rem !important;
+        }}
+
+        label, .stRadio label, .stCheckbox label {{
+            font-size: 1.05rem !important;
+        }}
+
+        input, textarea, select {{
+            font-size: 1.05rem !important;
         }}
 
         div[data-testid="stVerticalBlockBorderWrapper"] {{

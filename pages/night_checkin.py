@@ -17,7 +17,8 @@ from src.database import (
     save_morning_context,
 )
 from src.session_hydrate import get_confirmed_plan, hydrate_today_state
-from src.theme import ACCENT, page_title, section_title
+from src.theme import ACCENT, section_title
+from src.user_profile import morning_greeting
 
 SCORE_OPTIONS = [1, 2, 3, 4, 5]
 OPERATION_LABELS = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
@@ -38,26 +39,26 @@ def _inject_review_card_css() -> None:
         }}
         .eb-dish-name {{
             font-family: 'Noto Serif SC', serif;
-            font-size: 1.1rem;
+            font-size: 1.25rem;
             font-weight: 600;
             margin: 0;
             color: #1E293B;
         }}
         .eb-dish-meta {{
-            font-size: 0.82rem;
+            font-size: 1rem;
             color: #64748B;
             margin: 0.15rem 0 0.5rem;
         }}
         .eb-score-label {{
             font-family: 'Noto Serif SC', serif;
-            font-size: 0.92rem;
+            font-size: 1.05rem;
             font-weight: 600;
             color: #1E293B;
             margin: 0.35rem 0 0.15rem;
         }}
         .eb-ritual {{
             text-align: center;
-            font-size: 0.95rem;
+            font-size: 1.1rem;
             color: {ACCENT};
             font-family: 'Noto Serif SC', serif;
             margin: 0.75rem 0 0;
@@ -70,7 +71,7 @@ def _inject_review_card_css() -> None:
 
 def _render_morning_section(today_iso: str) -> None:
     section_title("fa-sun", "晨间三问")
-    st.caption("可选 · 填写后菜单推荐更贴合你的状态")
+    st.caption(morning_greeting())
 
     sleep = st.radio(
         "一、昨晚睡眠状态",
@@ -218,8 +219,6 @@ def render() -> None:
     init_database()
     hydrate_today_state()
     _inject_review_card_css()
-
-    page_title("fa-leaf", "回顾", "记录晨间状态，回顾今日餐食与身心感受。")
 
     today_iso = st.session_state.get("today_date", date.today().isoformat())
     _render_morning_section(today_iso)

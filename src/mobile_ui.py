@@ -11,6 +11,7 @@ from urllib.parse import quote
 from src.calendar_utils import display_version, format_today_cn
 from src.constants import APP_VERSION
 from src.theme import ACCENT, TEXT
+from src.user_profile import nickname
 
 NAV_ITEMS = [
     ("morning", "☀️", "菜单"),
@@ -84,7 +85,7 @@ def inject_mobile_css() -> None:
             gap: 0.12rem !important;
             text-decoration: none !important;
             padding: 0.28rem 0 !important;
-            font-size: 0.62rem !important;
+            font-size: 0.78rem !important;
             line-height: 1.1 !important;
             color: #64748B !important;
             background: transparent !important;
@@ -95,16 +96,17 @@ def inject_mobile_css() -> None:
             font-weight: 600 !important;
         }}
         .eb-nav-icon {{
-            font-size: 1.2rem !important;
+            font-size: 1.35rem !important;
             line-height: 1 !important;
         }}
         .eb-gen-btn {{
             display: block !important;
             width: auto !important;
-            min-width: 9.5rem !important;
-            max-width: 16rem !important;
-            margin: 0.5rem auto !important;
-            padding: 0.58rem 1.25rem !important;
+            min-width: 11rem !important;
+            max-width: 18rem !important;
+            margin: 0.65rem auto !important;
+            padding: 0.72rem 1.5rem !important;
+            font-size: 1.05rem !important;
             text-align: center !important;
             box-sizing: border-box !important;
         }}
@@ -126,8 +128,8 @@ def inject_mobile_css() -> None:
             justify-content: center !important;
             text-decoration: none !important;
             border-radius: 8px !important;
-            padding: 0.4rem 0.15rem !important;
-            font-size: 0.68rem !important;
+            padding: 0.55rem 0.2rem !important;
+            font-size: 0.88rem !important;
             line-height: 1.2 !important;
             color: {TEXT} !important;
             background: rgba(255,255,255,0.9) !important;
@@ -162,8 +164,8 @@ def inject_mobile_css() -> None:
             gap: 0.28rem !important;
             text-decoration: none !important;
             border-radius: 10px !important;
-            padding: 0.42rem 0.2rem !important;
-            font-size: 0.72rem !important;
+            padding: 0.55rem 0.25rem !important;
+            font-size: 1.05rem !important;
             line-height: 1.2 !important;
             color: {TEXT} !important;
             background: rgba(255,255,255,0.85) !important;
@@ -202,15 +204,57 @@ def inject_mobile_css() -> None:
         }}
         .eb-date-line {{
             text-align: center;
-            font-size: 0.72rem;
+            font-size: 1rem;
             color: {ACCENT};
             font-weight: 700;
             margin: 0.1rem 0 0.45rem;
         }}
         div[data-testid="stRadio"] > div {{ flex-wrap: wrap !important; gap: 0.35rem !important; }}
         div[data-testid="stRadio"] label {{
-            font-size: 0.82rem !important;
-            padding: 0.2rem 0.45rem !important;
+            font-size: 1.05rem !important;
+            padding: 0.35rem 0.55rem !important;
+        }}
+        /* 日历 — 有菜单深色可点，无菜单灰色 */
+        .eb-cal {{ margin: 0.5rem 0 0.75rem; user-select: none; }}
+        .eb-cal-head {{
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0.55rem;
+        }}
+        .eb-cal-title {{ font-size: 1.15rem; font-weight: 600; color: {TEXT}; }}
+        .eb-cal-nav {{
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 2.4rem; height: 2.4rem; border-radius: 10px;
+            border: 1px solid rgba(141,163,153,0.4); background: #fff;
+            color: {ACCENT}; text-decoration: none; font-size: 1.2rem;
+        }}
+        .eb-cal-weekdays, .eb-cal-grid {{
+            display: grid; grid-template-columns: repeat(7, 1fr);
+            gap: 0.25rem; text-align: center;
+        }}
+        .eb-cal-weekdays span {{
+            font-size: 0.95rem; color: #94A3B8; padding: 0.2rem 0;
+        }}
+        .eb-cal-day {{
+            display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 1; border-radius: 10px; font-size: 1.05rem;
+            text-decoration: none; border: 1px solid transparent;
+        }}
+        .eb-cal-day.active {{
+            color: {TEXT}; font-weight: 700; background: #fff;
+            border-color: rgba(141,163,153,0.35);
+        }}
+        .eb-cal-day.active.selected {{
+            background: rgba(141,163,153,0.22);
+            border-color: {ACCENT};
+        }}
+        .eb-cal-day.disabled {{
+            color: #CBD5E1; pointer-events: none; cursor: default;
+        }}
+        .eb-cal-day.empty {{ visibility: hidden; }}
+        .eb-cal-day.today:not(.selected) {{ border-color: rgba(141,163,153,0.25); }}
+        .eb-cal-hint {{
+            font-size: 0.95rem; color: #64748B; text-align: center;
+            margin: 0.45rem 0 0;
         }}
         </style>
         """,
@@ -222,10 +266,12 @@ def render_top_header(for_date: date | None = None) -> None:
     d = for_date or date.today()
     version = display_version(APP_VERSION)
     today_line = format_today_cn(d)
+    name = nickname()
+    title = f"🌿 {name}的简愈一人食" if name else "🌿 简愈一人食"
 
     st.markdown(
-        f"<h2 style='text-align:center;color:#1E293B;margin:0 0 0.2rem;font-size:1.3rem;'>"
-        f"🌿 简愈一人食"
+        f"<h2 style='text-align:center;color:#1E293B;margin:0 0 0.2rem;font-size:1.55rem;'>"
+        f"{title}"
         f"<span class='eb-title-version'>{version}</span></h2>",
         unsafe_allow_html=True,
     )

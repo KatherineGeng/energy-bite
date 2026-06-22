@@ -35,6 +35,7 @@ from src.mobile_ui import render_meal_action_row, render_primary_action_link
 from src.query_nav import pop_query_param
 from src.recommendation import format_ingredient_names, get_daily_menus
 from src.theme import section_title
+from src.user_profile import morning_greeting
 
 
 def _has_morning_context(today_iso: str) -> bool:
@@ -650,7 +651,7 @@ def render() -> None:
 
     if planning_phase:
         st.info("开始规划餐食，今天想吃什么？")
-        st.caption("可选：在「回顾」填写晨间三问，推荐会更贴合你的状态。")
+        st.caption(morning_greeting())
 
         left = _library_gens_remaining()
         if left > 0:

@@ -72,6 +72,11 @@ MENU_ARCHIVE_COLUMNS = [
     "is_imported",
     "saved_at",
 ]
+USER_PROFILE_FILE = "user_profiles.csv"
+USER_PROFILE_COLUMNS = ["user_id", "nickname", "gender", "age_group", "created_at", "updated_at"]
+APP_IMAGES_FILE = "app_images.csv"
+APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at"]
+APP_IMAGES_DIR = DATA_PATH / "app_images"
 MORNING_CONTEXT_COLUMNS = ["date", "sleep", "load", "meal_count", "updated_at"]
 DAILY_PLAN_COLUMNS = ["date", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
 
@@ -176,6 +181,14 @@ def init_database(force: bool = False) -> None:
 
     if force or not _csv_path(MENU_ARCHIVE_FILE).exists():
         _write_csv(_empty_frame(MENU_ARCHIVE_COLUMNS), MENU_ARCHIVE_FILE)
+
+    if force or not _csv_path(USER_PROFILE_FILE).exists():
+        _write_csv(_empty_frame(USER_PROFILE_COLUMNS), USER_PROFILE_FILE)
+
+    if force or not _csv_path(APP_IMAGES_FILE).exists():
+        _write_csv(_empty_frame(APP_IMAGES_COLUMNS), APP_IMAGES_FILE)
+
+    APP_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
     _migrate_legacy_favorites_to_archive()
 
@@ -484,6 +497,113 @@ def search_archive_menu_ids(keyword: str) -> list[str]:
                 seen.add(mid)
                 hits.append(mid)
     return hits
+
+
+def dates_with_menus() -> set[str]:
+    """All dates that have any saved menu (plan or archive)."""
+    from src.meal_plan_dates import meal_plan_date_markers
+
+    return set(meal_plan_date_markers().keys())
+
+
+def get_log_dates() -> set[str]:
+    logs = load_logs()
+    if logs.empty:
+        return set()
+    return set(str(d).strip() for d in logs["date"].unique() if str(d).strip())
+
+
+def load_user_profile() -> dict[str, Any] | None:
+    df = _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
+    if df.empty:
+        return None
+    row = df.iloc[-1]
+    return {col: str(row[col]) for col in USER_PROFILE_COLUMNS}
+
+
+def load_all_user_profiles() -> pd.DataFrame:
+    return _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
+
+
+def save_user_profile(nickname: str, gender: str, age_group: str) -> None:
+    now = datetime.now().isoformat(timespec="seconds")
+    df = _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
+    if df.empty:
+        user_id = "U001"
+        row = {
+            "user_id": user_id,
+            "nickname": nickname.strip(),
+            "gender": gender,
+            "age_group": age_group,
+            "created_at": now,
+            "updated_at": now,
+        }
+        _write_csv(pd.DataFrame([row]), USER_PROFILE_FILE)
+        return
+    idx = df.index[-1]
+    df.at[idx, "nickname"] = nickname.strip()
+    df.at[idx, "gender"] = gender
+    df.at[idx, "age_group"] = age_group
+    df.at[idx, "updated_at"] = now
+    _write_csv(df, USER_PROFILE_FILE)
+
+
+def save_app_image(data: bytes, *, source: str = "user", title: str = "") -> str:
+    APP_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)
+    image_id = f"IMG_{len(df) + 1:05d}"
+    ext = ".jpg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        ext = ".png"
+    filename = f"{image_id}{ext}"
+    path = APP_IMAGES_DIR / filename
+    path.write_bytes(data)
+    row = {
+        "image_id": image_id,
+        "filename": filename,
+        "source": source,
+        "title": title or filename,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(df, APP_IMAGES_FILE)
+    return image_id
+
+
+def list_app_images() -> list[dict[str, str]]:
+    df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)
+    if df.empty:
+        return []
+    df = df.sort_values("created_at", ascending=False)
+    return [dict(row) for _, row in df.iterrows()]
+
+
+def get_app_image_bytes(image_id: str) -> bytes | None:
+    df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)
+    if df.empty:
+        return None
+    rows = df[df["image_id"] == image_id]
+    if rows.empty:
+        return None
+    filename = str(rows.iloc[-1]["filename"])
+    path = APP_IMAGES_DIR / filename
+    if path.exists():
+        return path.read_bytes()
+    return None
+
+
+def delete_app_image(image_id: str) -> None:
+    df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)
+    if df.empty:
+        return
+    rows = df[df["image_id"] == image_id]
+    if not rows.empty:
+        filename = str(rows.iloc[-1]["filename"])
+        path = APP_IMAGES_DIR / filename
+        if path.exists():
+            path.unlink()
+    df = df[df["image_id"] != image_id]
+    _write_csv(df, APP_IMAGES_FILE)
 
 
 def load_favorites_dishes() -> pd.DataFrame:
