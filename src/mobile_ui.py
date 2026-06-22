@@ -33,6 +33,8 @@ def inject_mobile_css() -> None:
         [data-testid="stStatusWidget"],
         [data-testid="stDecoration"],
         [data-testid="stBottomBlockContainer"],
+        [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"]),
+        iframe[title="streamlit_app"],
         .stAppDeployButton, #MainMenu,
         .viewerBadge_container, div[class*="viewerBadge"],
         button[kind="header"], [data-testid="baseButton-header"],
@@ -128,7 +130,7 @@ def render_top_header(today: str, favorited_count: int) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        f'<p class="eb-version-badge">版本 {APP_VERSION} · 图标:同源PNG</p>',
+        f'<p class="eb-version-badge">版本 {APP_VERSION} · 图标:/app/static/</p>',
         unsafe_allow_html=True,
     )
     st.markdown(

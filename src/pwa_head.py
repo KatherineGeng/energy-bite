@@ -1,4 +1,4 @@
-"""Inject PWA / iOS icons — same-origin static + head meta for Safari."""
+"""Inject PWA / iOS icons — Streamlit static path + CDN + data-URI."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ _ICON = _ROOT / "static" / "apple-touch-icon.png"
 if not _ICON.exists():
     _ICON = _ROOT / "apple-touch-icon.png"
 
-_GITHUB_ICON = (
-    f"https://raw.githubusercontent.com/KatherineGeng/energy-bite/main/static/apple-touch-icon.png?v={APP_VERSION}"
-)
+# Streamlit static URL (requires enableStaticServing = true in config.toml)
+_STATIC_PATH = "/app/static/apple-touch-icon.png"
+_CDN_URL = f"https://cdn.jsdelivr.net/gh/KatherineGeng/energy-bite@main/static/apple-touch-icon.png?v={APP_VERSION}"
 
 
 def inject_pwa_head() -> None:
@@ -30,77 +30,64 @@ def inject_pwa_head() -> None:
     snippet = f"""
     <script>
     (function () {{
-        var github = "{_GITHUB_ICON}";
+        var staticPath = "{_STATIC_PATH}";
+        var cdn = "{_CDN_URL}";
         var dataUri = "{data_uri}";
 
         function upsertLink(doc, rel, href, sizes) {{
             if (!doc || !doc.head) return;
-            var el = doc.querySelector('link[rel="' + rel + '"]');
-            if (!el) {{
-                el = doc.createElement("link");
-                el.rel = rel;
-                doc.head.appendChild(el);
-            }}
+            var nodes = doc.querySelectorAll('link[rel="' + rel + '"]');
+            var el = nodes.length ? nodes[0] : doc.createElement("link");
+            el.rel = rel;
             el.href = href;
             el.type = "image/png";
             if (sizes) el.setAttribute("sizes", sizes);
+            if (!nodes.length) doc.head.appendChild(el);
         }}
 
         function upsertMeta(doc, name, content) {{
             if (!doc || !doc.head) return;
             var el = doc.querySelector('meta[name="' + name + '"]');
-            if (!el) {{
-                el = doc.createElement("meta");
-                el.name = name;
-                doc.head.appendChild(el);
-            }}
+            if (!el) {{ el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }}
             el.content = content;
         }}
 
-        function upsertProperty(doc, property, content) {{
+        function upsertProp(doc, property, content) {{
             if (!doc || !doc.head) return;
             var el = doc.querySelector('meta[property="' + property + '"]');
-            if (!el) {{
-                el = doc.createElement("meta");
-                el.setAttribute("property", property);
-                doc.head.appendChild(el);
-            }}
+            if (!el) {{ el = doc.createElement("meta"); el.setAttribute("property", property); doc.head.appendChild(el); }}
             el.content = content;
         }}
 
-        function applyIcons(doc, href) {{
+        function apply(doc, href) {{
             upsertLink(doc, "icon", href, "32x32");
             upsertLink(doc, "apple-touch-icon", href, "180x180");
             upsertLink(doc, "apple-touch-icon-precomposed", href, "180x180");
-            upsertProperty(doc, "og:image", href);
+            upsertLink(doc, "manifest", "/app/static/manifest.webmanifest");
+            upsertProp(doc, "og:image", href);
             upsertMeta(doc, "twitter:image", href);
+            upsertMeta(doc, "apple-mobile-web-app-title", "简愈");
+            upsertMeta(doc, "theme-color", "#8DA399");
         }}
 
-        function injectAll(href) {{
-            applyIcons(document, href);
-            upsertMeta(document, "apple-mobile-web-app-title", "简愈");
-            upsertMeta(document, "theme-color", "#8DA399");
-            try {{
-                applyIcons(window.parent.document, href);
-                upsertMeta(window.parent.document, "apple-mobile-web-app-title", "简愈");
-                upsertMeta(window.parent.document, "theme-color", "#8DA399");
-            }} catch (e) {{}}
+        function inject(href) {{
+            apply(document, href);
+            try {{ apply(window.parent.document, href); }} catch (e) {{}}
+        }}
+
+        function tryUrl(url, next) {{
+            var img = new Image();
+            img.onload = function () {{ inject(url); }};
+            img.onerror = function () {{ if (next) next(); }};
+            img.src = url;
         }}
 
         var loc = window.parent && window.parent.location ? window.parent.location : window.location;
-        var sameOrigin = loc.origin + "/apple-touch-icon.png?v={APP_VERSION}";
+        var sameOrigin = loc.origin + staticPath + "?v={APP_VERSION}";
 
-        injectAll(sameOrigin);
-
-        var test = new Image();
-        test.onload = function () {{ injectAll(sameOrigin); }};
-        test.onerror = function () {{
-            var test2 = new Image();
-            test2.onload = function () {{ injectAll(github); }};
-            test2.onerror = function () {{ injectAll(dataUri); }};
-            test2.src = github;
-        }};
-        test.src = sameOrigin;
+        tryUrl(sameOrigin, function () {{
+            tryUrl(cdn, function () {{ inject(dataUri); }});
+        }});
     }})();
     </script>
     """
