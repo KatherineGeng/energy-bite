@@ -153,6 +153,9 @@ def inject_mobile_css() -> None:
             width: 100% !important;
             margin: 0.35rem 0 0.15rem !important;
         }}
+        .eb-bottom-action-row {{
+            margin: 0.75rem 0 0.5rem !important;
+        }}
         .eb-meal-action-btn {{
             flex: 1 1 0 !important;
             min-width: 0 !important;

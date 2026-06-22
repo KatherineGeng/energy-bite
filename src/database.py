@@ -879,6 +879,23 @@ def search_menus_by_keyword(query: str, limit: int = 6) -> pd.DataFrame:
     return hits.sort_values(["pick_count", "menu_name"], ascending=[False, True]).head(limit)
 
 
+def _ingredient_token_match(token: str, library_name: str) -> bool:
+    """Match user token to library name without false positives (e.g. 萝卜 ≠ 胡萝卜)."""
+    token = token.strip().lower()
+    name = str(library_name).strip()
+    if not token or not name:
+        return False
+    if name.lower() == token:
+        return True
+    for segment in re.split(r"[/、|（(]", name):
+        seg = segment.strip().lower()
+        if seg == token:
+            return True
+        if seg.startswith(token) and "(" in name:
+            return True
+    return False
+
+
 def match_ingredients_from_text(text: str) -> tuple[list[str], list[str]]:
     """
     Match free-text ingredient names to ingredient library IDs.
@@ -897,9 +914,11 @@ def match_ingredients_from_text(text: str) -> tuple[list[str], list[str]]:
     unmatched: list[str] = []
 
     for part in parts:
-        hit = ings[ings["name"].str.contains(re.escape(part), case=False, na=False)]
+        hit = ings[ings["name"].str.lower() == part.lower()]
         if hit.empty:
-            hit = ings[ings["name"].apply(lambda n: part in str(n) or str(n) in part)]
+            hit = ings[
+                ings["name"].apply(lambda n: _ingredient_token_match(part, str(n)))
+            ]
         if not hit.empty:
             ing_id = str(hit.iloc[0]["id"])
             if ing_id not in matched_ids:
@@ -923,9 +942,12 @@ def append_manual_menu(
     """Create a hand-entered dish in the menu library."""
     from src.nutrition_api import encode_nutrition_description
 
-    ids = list(ingredient_ids or [])
-    if not ids and ingredients_text.strip():
+    if ingredient_ids is not None:
+        ids = list(ingredient_ids)
+    elif ingredients_text.strip():
         ids, _ = match_ingredients_from_text(ingredients_text)
+    else:
+        ids = []
 
     if ids:
         known = set(load_ingredients()["id"].tolist())

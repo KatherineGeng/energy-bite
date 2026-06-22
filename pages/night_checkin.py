@@ -16,6 +16,7 @@ from src.database import (
     save_favorite_menu_set,
     save_morning_context,
 )
+from src.review_ui import render_dish_favorite_heart
 from src.session_hydrate import get_confirmed_plan, hydrate_today_state
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
@@ -67,42 +68,74 @@ def _inject_review_card_css() -> None:
             color: #1E293B;
             line-height: 1.35;
         }}
-        .eb-dish-header-row [data-testid="column"]:first-child {{
-            display: flex !important;
-            align-items: center !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type {{
-            align-items: center !important;
+        .eb-dish-head-row [data-testid="stHorizontalBlock"] {{
             flex-wrap: nowrap !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type [data-testid="column"]:last-child {{
-            flex: 0 0 auto !important;
-            width: auto !important;
-            min-width: 3.5rem !important;
-            display: flex !important;
             align-items: center !important;
-            justify-content: flex-end !important;
+            gap: 0.1rem !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stCheckbox {{
+        .eb-dish-head-row [data-testid="column"]:last-child {{
+            flex: 0 0 2.2rem !important;
+            width: 2.2rem !important;
+            min-width: 2.2rem !important;
+            max-width: 2.2rem !important;
+        }}
+        .eb-dish-header-row {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 0.15rem !important;
+            width: 100% !important;
+            margin-bottom: 0.25rem !important;
+        }}
+        .eb-dish-header-row .eb-dish-name {{
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
             margin: 0 !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stCheckbox label {{
-            font-size: 1rem !important;
+        .eb-heart-wrap {{
+            flex: 0 0 auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }}
+        .eb-heart-wrap .stButton {{
+            margin: 0 !important;
+            padding: 0 !important;
+        }}
+        .eb-heart-wrap .stButton > button {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 0.1rem !important;
+            margin: 0 !important;
+            min-height: unset !important;
+            height: auto !important;
+            font-size: 1.35rem !important;
+            line-height: 1 !important;
         }}
         div[data-testid="stRadio"] > div {{
             flex-wrap: nowrap !important;
             display: flex !important;
             flex-direction: row !important;
             width: 100% !important;
-            gap: 0.2rem !important;
+            gap: 0 !important;
+            justify-content: space-between !important;
         }}
         .eb-evening-review div[data-testid="stRadio"] label {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            max-width: 20% !important;
-            padding: 0.35rem 0.1rem !important;
+            max-width: none !important;
+            padding: 0.28rem 0 !important;
+            margin: 0 !important;
             justify-content: center !important;
-            font-size: 1rem !important;
+            font-size: 0.82rem !important;
+        }}
+        .eb-evening-review div[data-testid="stRadio"] label span {{
+            font-size: 0.82rem !important;
+        }}
+        .eb-evening-review div[data-testid="stRadio"] [data-testid="stMarkdownContainer"] {{
+            display: none !important;
         }}
         .eb-morning-block [data-testid="stWidgetLabel"] {{
             display: none !important;
@@ -214,14 +247,16 @@ def _render_evening_section(confirmed: dict) -> None:
         with st.container(border=True):
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
-            title_col, fav_col = st.columns([7, 2], gap="small")
+            st.markdown('<div class="eb-dish-head-row">', unsafe_allow_html=True)
+            title_col, heart_col = st.columns([9, 1], gap="small")
             with title_col:
                 st.markdown(
                     f'<p class="eb-dish-name">{meal_type}：{dish_name}</p>',
                     unsafe_allow_html=True,
                 )
-            with fav_col:
-                st.checkbox("收藏", key=f"review_{menu_id}_fav_dish")
+            with heart_col:
+                render_dish_favorite_heart(menu_id)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             st.markdown('<p class="eb-score-label">操作从容度 (1-5分)</p>', unsafe_allow_html=True)
             st.caption("1分：极其匆忙 → 5分：优雅享受")

@@ -34,6 +34,7 @@ from src.nutrition import coverage_summary
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
 from src.mobile_ui import (
     MENU_GEN_ICON,
+    render_meal_action_row,
     render_primary_action_link,
 )
 from src.nav_params import append_nav_params
@@ -235,7 +236,7 @@ def _try_confirm_new_dish(meal_type: str) -> bool:
         dish_name,
         prep_minutes=prep,
         ingredients_text=ing_text,
-        ingredient_ids=list(analysis.get("ingredient_ids", [])),
+        ingredient_ids=[],  # nutrition from categories; display uses raw text
         energy_tags=str(analysis.get("energy_tags", "手工添加")),
         nutrition_categories=list(analysis.get("categories", [])),
         meal_type=meal_type,
@@ -339,12 +340,13 @@ def _run_generate(sleep: str, load: str, meal_count: int) -> None:
 
 
 def _ingredients_display(row: dict, ingredient_map: dict) -> str:
-    text = format_ingredient_names(row, ingredient_map)
-    if text and text != "—":
-        return text
+    """Show user-entered text for manual dishes; library names otherwise."""
     ing_only, _ = parse_nutrition_from_description(str(row.get("description", "")))
     if ing_only and ing_only not in ("手工添加", "由极客口令导入"):
         return ing_only
+    text = format_ingredient_names(row, ingredient_map)
+    if text and text != "—":
+        return text
     return "—"
 
 
@@ -381,23 +383,13 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
         key=prep_key,
     )
 
-    btn_cols = st.columns(2, gap="small")
-    with btn_cols[0]:
-        if st.button(
-            "确认入库并加入本餐",
-            type="primary",
-            use_container_width=True,
-            key=f"confirm_new_{meal_type}",
-        ):
-            if _try_confirm_new_dish(meal_type):
-                st.rerun()
-    with btn_cols[1]:
-        if st.button(
-            "返回搜索",
-            use_container_width=True,
-            key=f"back_search_{meal_type}",
-        ):
-            _on_back_manual_search(meal_type)
+    if st.button(
+        "确认入库并加入本餐",
+        type="primary",
+        use_container_width=True,
+        key=f"confirm_new_{meal_type}",
+    ):
+        if _try_confirm_new_dish(meal_type):
             st.rerun()
 
 
@@ -566,7 +558,8 @@ def _render_meal_toolbar(
     show_library: bool = False,
     key_suffix: str = "row",
 ) -> None:
-    """Streamlit buttons — no full-page reload (keeps session + manual dishes)."""
+    """HTML link row — horizontal on mobile Safari (plan persisted to CSV on reload)."""
+    del key_suffix
     items: list[tuple[str, str, str | None]] = []
     if show_remove and menu_id:
         items.append(("remove", "移除", menu_id))
@@ -574,36 +567,8 @@ def _render_meal_toolbar(
         items.append(("manual", "手工添加", None))
     if show_library:
         items.append(("library", "菜单库添加", None))
-    if not items:
-        return
-
-    cols = st.columns(len(items), gap="small")
-    for col, (act, label, mid) in zip(cols, items):
-        with col:
-            if act == "remove" and mid:
-                st.button(
-                    label,
-                    key=f"mt_{act}_{meal_type}_{mid}_{key_suffix}",
-                    use_container_width=True,
-                    on_click=_on_remove_dish,
-                    args=(meal_type, mid),
-                )
-            elif act == "manual":
-                st.button(
-                    label,
-                    key=f"mt_{act}_{meal_type}_{key_suffix}",
-                    use_container_width=True,
-                    on_click=_on_open_manual,
-                    args=(meal_type,),
-                )
-            elif act == "library":
-                st.button(
-                    label,
-                    key=f"mt_{act}_{meal_type}_{key_suffix}",
-                    use_container_width=True,
-                    on_click=_on_open_library,
-                    args=(meal_type,),
-                )
+    if items:
+        render_meal_action_row(meal_type, items)
 
 
 def _render_meal_sections(
@@ -700,38 +665,38 @@ def _on_unlock_plan() -> None:
 
 
 def _render_bottom_action_row(*, locked: bool) -> None:
-    """Three horizontal actions: coverage table, confirm/edit, favorite."""
-    col_cov, col_confirm, col_fav = st.columns(3, gap="small")
-    with col_cov:
-        st.button(
-            "营养覆盖",
-            use_container_width=True,
-            key="btn_cov_table",
-            on_click=_toggle_coverage_table,
-        )
-    with col_confirm:
-        if locked:
-            st.button(
-                "重新编辑",
-                use_container_width=True,
-                key="btn_unlock_plan",
-                on_click=_on_unlock_plan,
-            )
-        else:
-            st.button(
-                "确认今日菜单",
-                type="primary",
-                use_container_width=True,
-                key="confirm_plan",
-                on_click=_confirm_today_plan,
-            )
-    with col_fav:
-        st.button(
-            "收藏菜单",
-            use_container_width=True,
-            key="btn_fav_menu",
-            on_click=_on_favorite_menu,
-        )
+    """Three horizontal HTML links — mobile Safari safe."""
+    page = st.session_state.get("current_page", "morning")
+    base = append_nav_params(f"?nav={quote(page)}")
+    confirm_label = "重新编辑" if locked else "确认今日菜单"
+    confirm_act = "unlock" if locked else "confirm"
+    confirm_cls = "" if locked else " primary"
+    st.markdown(
+        f'<div class="eb-meal-action-row eb-bottom-action-row">'
+        f'<a class="eb-meal-action-btn" href="{base}&bottom_act=cov">营养覆盖</a>'
+        f'<a class="eb-meal-action-btn{confirm_cls}" href="{base}&bottom_act={confirm_act}">{confirm_label}</a>'
+        f'<a class="eb-meal-action-btn" href="{base}&bottom_act=fav">收藏菜单</a>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _apply_bottom_query_actions() -> None:
+    act = pop_query_param("bottom_act")
+    if not act:
+        return
+    if act == "cov":
+        _toggle_coverage_table()
+        st.rerun()
+    elif act == "confirm":
+        _confirm_today_plan()
+        st.rerun()
+    elif act == "unlock":
+        _on_unlock_plan()
+        st.rerun()
+    elif act == "fav":
+        _on_favorite_menu()
+        st.rerun()
 
 
 def _save_favorite_menu() -> bool:
@@ -750,6 +715,7 @@ def render() -> None:
     today_iso = st.session_state.get("today_date", date.today().isoformat())
 
     legacy_act = pop_query_param("act")
+    _apply_bottom_query_actions()
     _apply_ui_query_actions()
     _apply_meal_query_actions()
 
