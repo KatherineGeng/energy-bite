@@ -8,17 +8,13 @@ from datetime import date
 
 import streamlit as st
 
-from pages import export_poster, morning, night_checkin
 from src.constants import APP_VERSION
 from src.database import count_favorited_menus, init_database
-from src.mobile_ui import (
-    apply_query_nav,
-    inject_mobile_css,
-    render_bottom_nav,
-    render_top_header,
-)
+from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.pwa_head import inject_pwa_head
+from src.query_nav import apply_query_nav
 from src.theme import inject_theme_assets
+from pages import export_poster, morning, night_checkin
 
 st.set_page_config(
     page_title=f"简愈一人食 {APP_VERSION}",

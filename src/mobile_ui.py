@@ -166,28 +166,3 @@ def render_bottom_nav(current_page: str) -> None:
             f'<span class="eb-nav-icon">{icon}</span>{label}</a>'
         )
     st.markdown(f'<nav class="eb-bottom-nav">{"".join(links)}</nav>', unsafe_allow_html=True)
-
-
-def apply_query_nav(valid_pages: set[str]) -> None:
-    nav = st.query_params.get("nav")
-    if not nav or nav not in valid_pages:
-        return
-    changed = st.session_state.get("current_page") != nav
-    st.session_state.current_page = nav
-    _clear_query_key("nav")
-    if changed:
-        st.rerun()
-
-
-def apply_query_action(action: str | None) -> bool:
-    """Return True if an action was consumed (caller should rerun after handling)."""
-    return action is not None and action in {"gen", "shuffle"}
-
-
-def clear_query_action() -> None:
-    _clear_query_key("act")
-
-
-def _clear_query_key(key: str) -> None:
-    remaining = {k: v for k, v in st.query_params.items() if k != key}
-    st.query_params.from_dict(remaining)

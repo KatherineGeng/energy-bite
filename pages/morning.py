@@ -8,8 +8,8 @@ import streamlit as st
 
 from src.database import get_ingredient_map, get_menu_by_id, init_database, load_menus
 from src.nutrition import coverage_summary
+from src.query_nav import clear_query_action
 from src.recommendation import format_ingredient_names, get_daily_menus
-from src.mobile_ui import clear_query_action, render_action_row
 from src.theme import page_title, section_title
 
 
@@ -52,6 +52,8 @@ def _add_menu(menu_id: str) -> None:
 
 
 def render() -> None:
+    from src.mobile_ui import render_action_row
+
     init_database()
     all_menus = load_menus()
 
