@@ -14,10 +14,14 @@ from src import database as db
 from src.meal_plan_utils import empty_meal_plan, flatten_plan
 
 
-def _setup_tmp_data(tmp_path: Path, monkeypatch) -> None:
+def _setup_tmp_data(tmp_path: Path, monkeypatch) -> str:
     monkeypatch.setattr(db, "DATA_PATH", tmp_path)
     monkeypatch.setattr(db, "APP_IMAGES_DIR", tmp_path / "app_images")
+    user_key = "test_user_key_01"
+    monkeypatch.setattr("src.client_profile.plan_user_key", lambda: user_key)
+    monkeypatch.setattr("src.database.plan_user_key", lambda: user_key, raising=False)
     db.init_database(force=True)
+    return user_key
 
 
 def test_append_manual_and_persist_plan(tmp_path, monkeypatch):

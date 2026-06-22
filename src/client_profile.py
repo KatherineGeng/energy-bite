@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from urllib.parse import quote
 
@@ -11,6 +12,14 @@ import streamlit as st
 from src.query_nav import qp_first
 
 _PROFILE_KEY = "eb_profile_ebp"
+
+
+def plan_user_key() -> str:
+    """Stable per-user key for scoping saved meal plans on shared server storage."""
+    token = profile_token()
+    if not token:
+        return ""
+    return hashlib.sha256(token.encode()).hexdigest()[:16]
 
 
 def encode_profile(nickname: str, gender: str, age_group: str) -> str:

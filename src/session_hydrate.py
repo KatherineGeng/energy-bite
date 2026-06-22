@@ -6,15 +6,38 @@ from datetime import date
 
 import streamlit as st
 
+from src.client_profile import plan_user_key
 from src.database import load_daily_meal_plan, load_morning_context
 from src.meal_plan_utils import empty_meal_plan
 
 
+def clear_menu_session_state() -> None:
+    """Reset menu-related session when user profile is not ready."""
+    st.session_state.meal_plan = empty_meal_plan()
+    st.session_state.current_day_menus = []
+    st.session_state.today_recommendations = []
+    st.session_state.today_menus = []
+    st.session_state.final_meal_plan = empty_meal_plan()
+    st.session_state.final_daily_list = []
+    st.session_state.menu_locked = False
+    st.session_state.eb_add_ui = None
+    st.session_state.morning_inputs = {}
+    st.session_state._hydrated_date = None
+    st.session_state._hydrated_user = None
+
+
 def hydrate_today_state() -> None:
     today = date.today().isoformat()
+    user_key = plan_user_key()
     st.session_state.today_date = today
 
-    if st.session_state.get("_hydrated_date") == today:
+    if not user_key:
+        return
+
+    if (
+        st.session_state.get("_hydrated_date") == today
+        and st.session_state.get("_hydrated_user") == user_key
+    ):
         return
 
     saved_plan = load_daily_meal_plan(today)
@@ -31,6 +54,13 @@ def hydrate_today_state() -> None:
             st.session_state.menu_locked = False
             st.session_state.final_meal_plan = empty_meal_plan()
             st.session_state.final_daily_list = []
+    else:
+        st.session_state.meal_plan = empty_meal_plan()
+        st.session_state.current_day_menus = []
+        st.session_state.today_recommendations = []
+        st.session_state.menu_locked = False
+        st.session_state.final_meal_plan = empty_meal_plan()
+        st.session_state.final_daily_list = []
 
     ctx = load_morning_context(today)
     if ctx:
@@ -45,6 +75,7 @@ def hydrate_today_state() -> None:
         st.session_state.morning_context_loaded = today
 
     st.session_state._hydrated_date = today
+    st.session_state._hydrated_user = user_key
 
 
 def get_confirmed_plan(day: str | None = None) -> dict | None:

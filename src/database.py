@@ -87,8 +87,8 @@ USER_PROFILE_COLUMNS = [
 APP_IMAGES_FILE = "app_images.csv"
 APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at", "data_b64"]
 APP_IMAGES_DIR = DATA_PATH / "app_images"
-MORNING_CONTEXT_COLUMNS = ["date", "sleep", "load", "meal_count", "updated_at"]
-DAILY_PLAN_COLUMNS = ["date", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
+MORNING_CONTEXT_COLUMNS = ["date", "user_key", "sleep", "load", "meal_count", "updated_at"]
+DAILY_PLAN_COLUMNS = ["date", "user_key", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
 
 SEED_INGREDIENTS = """id,name,nutrition_category,role,notes
 ING_001,希腊酸奶(无糖),高钙|优质脂肪,主食|加餐,肠脑轴调节，提供色氨酸
@@ -1015,10 +1015,17 @@ def _plan_dict_from_row(row: pd.Series) -> dict[str, list[str]]:
 
 
 def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: bool) -> None:
-    """Persist draft or confirmed meal plan for a date."""
+    """Persist draft or confirmed meal plan for a date (scoped by user)."""
+    from src.client_profile import plan_user_key
+
+    user_key = plan_user_key()
+    if not user_key:
+        return
+
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     row = {
         "date": day,
+        "user_key": user_key,
         "breakfast": "|".join(plan.get("早餐", [])),
         "lunch": "|".join(plan.get("午餐", [])),
         "dinner": "|".join(plan.get("晚餐", [])),
@@ -1028,16 +1035,23 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
     if df.empty:
         out = pd.DataFrame([row])
     else:
-        df = df[df["date"] != day]
+        mask = (df["date"] == day) & (df["user_key"] == user_key)
+        df = df[~mask]
         out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(out[DAILY_PLAN_COLUMNS], DAILY_PLAN_FILE)
 
 
 def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
+    from src.client_profile import plan_user_key
+
+    user_key = plan_user_key()
+    if not user_key:
+        return None
+
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     if df.empty:
         return None
-    rows = df[df["date"] == day]
+    rows = df[(df["date"] == day) & (df["user_key"] == user_key)]
     if rows.empty:
         return None
     row = rows.iloc[-1]
@@ -1066,10 +1080,16 @@ def list_meal_plan_dates(*, confirmed_only: bool = False) -> list[str]:
 
 
 def load_morning_context(day: str) -> dict[str, Any] | None:
+    from src.client_profile import plan_user_key
+
+    user_key = plan_user_key()
+    if not user_key:
+        return None
+
     df = _read_csv(MORNING_CONTEXT_FILE, MORNING_CONTEXT_COLUMNS)
     if df.empty:
         return None
-    rows = df[df["date"] == day]
+    rows = df[(df["date"] == day) & (df["user_key"] == user_key)]
     if rows.empty:
         return None
     row = rows.iloc[-1]
@@ -1082,10 +1102,17 @@ def load_morning_context(day: str) -> dict[str, Any] | None:
 
 
 def save_morning_context(day: str, sleep: str, load: str, meal_count: int) -> None:
+    from src.client_profile import plan_user_key
+
+    user_key = plan_user_key()
+    if not user_key:
+        return
+
     df = _read_csv(MORNING_CONTEXT_FILE, MORNING_CONTEXT_COLUMNS)
     now = datetime.now().isoformat(timespec="seconds")
     row = {
         "date": day,
+        "user_key": user_key,
         "sleep": sleep,
         "load": load,
         "meal_count": str(int(meal_count)),
@@ -1094,6 +1121,7 @@ def save_morning_context(day: str, sleep: str, load: str, meal_count: int) -> No
     if df.empty:
         out = pd.DataFrame([row])
     else:
-        df = df[df["date"] != day]
+        mask = (df["date"] == day) & (df["user_key"] == user_key)
+        df = df[~mask]
         out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(out[MORNING_CONTEXT_COLUMNS], MORNING_CONTEXT_FILE)

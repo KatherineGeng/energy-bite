@@ -30,7 +30,7 @@ from src.meal_plan_utils import (
 from src.session_hydrate import hydrate_today_state
 from src.llm_client import has_api_key
 from src.coverage_widget import render_daily_coverage_table, render_meal_headline
-from src.nutrition import coverage_summary, menu_row_from_analysis
+from src.nutrition import coverage_summary
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
 from src.mobile_ui import (
     MENU_GEN_ICON,
@@ -204,8 +204,10 @@ def _close_add_panel() -> None:
     st.session_state.eb_add_ui = None
 
 
-def _try_confirm_new_dish(meal_type: str) -> None:
+def _try_confirm_new_dish(meal_type: str) -> bool:
     ui = st.session_state.get("eb_add_ui") or {}
+    if ui.get("step") != "create":
+        return False
     dish_name = str(ui.get("draft_name", "")).strip()
     ing_key = f"new_ing_{meal_type}"
     prep_key = f"new_prep_{meal_type}"
@@ -216,13 +218,18 @@ def _try_confirm_new_dish(meal_type: str) -> None:
 
     if not ing_text:
         _flash("请填写食材。")
-        return
+        return False
     if not dish_name:
         _flash("菜品名称不能为空。")
-        return
+        return False
+
     if not analysis or not analysis.get("categories"):
-        _flash("请先点击「分析营养覆盖」。")
-        return
+        analysis = analyze_ingredients(ing_text)
+        st.session_state[analysis_key] = analysis
+
+    if not analysis or not analysis.get("categories"):
+        _flash("营养分析失败，请检查食材描述。")
+        return False
 
     menu_id = append_manual_menu(
         dish_name,
@@ -236,7 +243,8 @@ def _try_confirm_new_dish(meal_type: str) -> None:
     st.session_state.pop(analysis_key, None)
     _add_to_slot(meal_type, menu_id)
     _close_add_panel()
-    _flash_success("添加成功")
+    _flash_success(f"已添加「{dish_name}」")
+    return True
 
 
 def _toggle_coverage_table() -> None:
@@ -351,22 +359,21 @@ def _run_shuffle(sleep: str, load: str, meal_count: int) -> None:
 
 
 def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
-    """New menu: name + ingredients text + prep time; nutrition via API analysis."""
+    """New menu: name + ingredients + prep; confirm auto-analyzes and closes panel."""
     st.markdown(f"**新菜品 · {dish_name}**")
-    st.caption("必填：食材、准备时间。填写后请点击底部「分析营养覆盖」。")
+    st.caption("必填：食材、准备时间。点击确认后自动分析营养并加入本餐。")
 
     ing_key = f"new_ing_{meal_type}"
     prep_key = f"new_prep_{meal_type}"
-    analysis_key = f"nutr_result_{meal_type}"
 
     st.text_input("菜品名称", value=dish_name, disabled=True, key=f"new_name_{meal_type}")
-    ingredients_text = st.text_area(
+    st.text_area(
         "食材（必填）",
         placeholder="例如：希腊酸奶、蓝莓、核桃（用顿号或逗号分隔）",
         key=ing_key,
         height=80,
     )
-    prep = st.number_input(
+    st.number_input(
         "准备时间（分钟，必填）",
         min_value=1,
         max_value=180,
@@ -374,77 +381,24 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
         key=prep_key,
     )
 
-    ing_text = ingredients_text.strip()
-    analysis = st.session_state.get(analysis_key)
-    if analysis and ing_text:
-        draft = menu_row_from_analysis(ing_text, analysis, dish_name, int(prep))
-        st.caption(f"预计营养覆盖：{coverage_summary(draft)}")
-        note = analysis.get("note", "")
-        if note:
-            st.caption(note)
-        if analysis.get("unmatched"):
-            st.caption("未入库食材：" + "、".join(analysis["unmatched"]))
-
-    if st.button(
-        "分析营养覆盖",
-        type="secondary",
-        use_container_width=True,
-        key=f"analyze_nutr_{meal_type}",
-        disabled=not ing_text,
-    ):
-        with st.spinner("正在分析营养覆盖…"):
-            st.session_state[analysis_key] = analyze_ingredients(ing_text)
-
-    _render_panel_buttons(
-        meal_type,
-        primary=("确认入库并加入本餐", _try_confirm_new_dish),
-        secondary=("返回搜索", _on_back_manual_search),
-        show_cancel=False,
-    )
-
-
-def _render_panel_buttons(
-    meal_type: str,
-    *,
-    primary: tuple[str, object] | None = None,
-    secondary: tuple[str, object] | None = None,
-    show_cancel: bool = True,
-    key_prefix: str = "panel",
-) -> None:
-    """In-panel actions via Streamlit buttons (avoid full-page reload)."""
-    cols = st.columns(3 if secondary else 2)
-    col_idx = 0
-    if primary:
-        label, handler = primary
-        with cols[col_idx]:
-            st.button(
-                label,
-                type="primary",
-                use_container_width=True,
-                key=f"{key_prefix}_pri_{meal_type}",
-                on_click=handler,
-                args=(meal_type,),
-            )
-        col_idx += 1
-    if secondary:
-        label, handler = secondary
-        with cols[col_idx]:
-            st.button(
-                label,
-                use_container_width=True,
-                key=f"{key_prefix}_sec_{meal_type}",
-                on_click=handler,
-                args=(meal_type,),
-            )
-        col_idx += 1
-    if show_cancel:
-        with cols[col_idx]:
-            st.button(
-                "取消",
-                use_container_width=True,
-                key=f"{key_prefix}_cancel_{meal_type}",
-                on_click=_close_add_panel,
-            )
+    btn_cols = st.columns(2, gap="small")
+    with btn_cols[0]:
+        if st.button(
+            "确认入库并加入本餐",
+            type="primary",
+            use_container_width=True,
+            key=f"confirm_new_{meal_type}",
+        ):
+            if _try_confirm_new_dish(meal_type):
+                st.rerun()
+    with btn_cols[1]:
+        if st.button(
+            "返回搜索",
+            use_container_width=True,
+            key=f"back_search_{meal_type}",
+        ):
+            _on_back_manual_search(meal_type)
+            st.rerun()
 
 
 def _render_manual_add(meal_type: str, ui: dict) -> None:
@@ -484,20 +438,16 @@ def _render_manual_add(meal_type: str, ui: dict) -> None:
             st.caption("库内暂无相似名称，可作为新菜品录入。")
 
     if query:
-        _render_panel_buttons(
-            meal_type,
-            primary=("确认为新菜品", _on_start_new_dish),
-            show_cancel=True,
-            key_prefix="new_dish",
-        )
+        if st.button(
+            "确认为新菜品",
+            type="primary",
+            use_container_width=True,
+            key=f"start_new_{meal_type}",
+        ):
+            _on_start_new_dish(meal_type)
+            st.rerun()
     else:
         st.caption("请先输入菜品名称。")
-        st.button(
-            "取消",
-            use_container_width=True,
-            key=f"cancel_empty_search_{meal_type}",
-            on_click=_close_add_panel,
-        )
 
 
 def _render_add_panel(meal_type: str) -> None:
@@ -583,8 +533,8 @@ def _apply_ui_query_actions() -> None:
         _close_add_panel()
         st.rerun()
     elif ui_act == "confirm_new" and meal:
-        _try_confirm_new_dish(meal)
-        st.rerun()
+        if _try_confirm_new_dish(meal):
+            st.rerun()
     elif ui_act == "new_dish" and meal:
         _on_start_new_dish(meal)
         st.rerun()
@@ -627,7 +577,7 @@ def _render_meal_toolbar(
     if not items:
         return
 
-    cols = st.columns(len(items))
+    cols = st.columns(len(items), gap="small")
     for col, (act, label, mid) in zip(cols, items):
         with col:
             if act == "remove" and mid:
@@ -751,7 +701,7 @@ def _on_unlock_plan() -> None:
 
 def _render_bottom_action_row(*, locked: bool) -> None:
     """Three horizontal actions: coverage table, confirm/edit, favorite."""
-    col_cov, col_confirm, col_fav = st.columns(3)
+    col_cov, col_confirm, col_fav = st.columns(3, gap="small")
     with col_cov:
         st.button(
             "营养覆盖",

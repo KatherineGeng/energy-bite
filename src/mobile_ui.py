@@ -231,6 +231,22 @@ def inject_mobile_css() -> None:
             flex: 1 1 0 !important;
             min-width: 0 !important;
         }}
+        section.main div[data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 0.35rem !important;
+        }}
+        section.main div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            width: auto !important;
+        }}
+        section.main div[data-testid="stHorizontalBlock"] .stButton > button {{
+            font-size: 0.82rem !important;
+            padding: 0.48rem 0.25rem !important;
+            white-space: nowrap !important;
+        }}
         div[data-testid="stVerticalBlockBorderWrapper"] .stButton > button {{
             font-size: 0.68rem !important;
             padding: 0.38rem 0.15rem !important;
