@@ -6,7 +6,6 @@ import base64
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from src.constants import APP_VERSION
 
@@ -28,8 +27,7 @@ def inject_pwa_head() -> None:
     icon_b64 = base64.b64encode(_ICON.read_bytes()).decode("ascii")
     data_uri = f"data:image/png;base64,{icon_b64}"
 
-    components.html(
-        f"""
+    snippet = f"""
         <script>
         (function () {{
             try {{
@@ -50,12 +48,10 @@ def inject_pwa_head() -> None:
                     if (sizes) el.setAttribute("sizes", sizes);
                 }}
 
-                // 优先 GitHub 公网 PNG（iOS 主屏幕最稳）
                 setLink("apple-touch-icon", github, "180x180");
                 setLink("apple-touch-icon-precomposed", github, "180x180");
                 setLink("icon", github, "180x180");
 
-                // data-URI 备用（部分浏览器标签页）
                 var probe = new Image();
                 probe.onerror = function () {{
                     setLink("apple-touch-icon", dataUri, "180x180");
@@ -83,7 +79,11 @@ def inject_pwa_head() -> None:
             }}
         }})();
         </script>
-        """,
-        height=0,
-        width=0,
-    )
+        """
+
+    if hasattr(st, "html"):
+        st.html(snippet, height=0, width=0)
+    else:
+        import streamlit.components.v1 as components
+
+        components.html(snippet, height=0, width=0)

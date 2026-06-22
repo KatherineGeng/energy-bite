@@ -61,4 +61,4 @@ apply_query_nav(set(PAGE_MAP.keys()))
 
 render_top_header(st.session_state.today_date, count_favorited_menus())
 PAGE_MAP[st.session_state.current_page]()
-render_bottom_nav(st.session_state.current_page)
+render_bottom_nav()
