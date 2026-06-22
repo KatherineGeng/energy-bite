@@ -206,7 +206,7 @@ def _fresh_menu_prompt(
     strict: bool = False,
 ) -> str:
     strict_line = (
-        "\n7. 再次强调：picks 必须是空数组 []，禁止从菜品库选菜。"
+        "\n8. 再次强调：picks 必须是空数组 []，禁止从菜品库选菜。"
         if strict
         else ""
     )
@@ -216,7 +216,7 @@ def _fresh_menu_prompt(
 - 睡眠：{sleep_quality}（偏好标签：{sleep_tags}）
 - 消耗：{brain_body_load}（偏好标签：{load_tags}）
 - 餐数：{meal_count}（需覆盖餐次：{slots_text}）
-- 今日已用过的菜品（菜名勿重复）：{exclude_text}
+- 今日已用过的菜品（绝对勿重复）：{exclude_text}
 
 菜品库仅供参考风格，本次禁止直接选用（picks 必须为空）：
 {catalog}
@@ -228,24 +228,25 @@ def _fresh_menu_prompt(
   "picks": [],
   "new_menus": [
     {{
-      "menu_name": "独创菜名（不得与菜品库已有菜名相同）",
+      "menu_name": "符合地中海风格的高级中文菜名（如：莳萝烤三文鱼配藜麦）",
       "meal_type": "早餐",
-      "ingredients_text": "具体食材1、食材2、食材3",
+      "ingredients_text": "核心食材1、核心食材2、配菜、优质脂肪",
       "prep_minutes": 15,
-      "energy_tags": "稳糖·快速供能",
-      "categories": ["蛋白质", "膳食纤维"]
+      "energy_tags": "激素平稳·深层抗炎",
+      "categories": ["蛋白质", "优质脂肪"]
     }}
   ],
-  "note": "一句中文推荐理由"
+  "note": "一句针对45-65岁女性的中文推荐理由（如：深海鱼油的抗炎属性，能为你今天的脑力消耗提供优质底座）"
 }}
 
 规则：
 1. picks 必须为空数组 []，不得从菜品库选 menu_id。
 2. new_menus 必须恰好 {meal_count} 道，meal_type 覆盖 {slots_text} 各一道。
-3. 每道菜须有具体中文菜名、详细食材清单（顿号分隔）、准备分钟数、1-3 个能量标签。
+3. 【关键】食材搭配必须符合真实、美味的烹饪常识。优先使用初榨橄榄油、深海鱼、全谷物、深色果蔬，严禁生冷伤胃或口味相冲的奇怪组合。
 4. categories 只能从七大营养类中选，每道菜至少 2 类。
-5. 根据晨间状态个性化设计，体现抗炎/稳糖/补脑等取向。
-6. 只输出 JSON，不要 markdown 代码块。{strict_line}"""
+5. 根据晨间状态个性化设计，体现抗炎/稳糖/补充植物雌激素等 45-65 岁女性取向。
+6. 每道菜必须能在 10-25 分钟内从容完成（快煎、清蒸、烤箱、凉拌），避免重油烟。
+7. 只输出 JSON，不要 markdown 代码块。{strict_line}"""
 
 
 def suggest_daily_menus_api(
@@ -297,8 +298,9 @@ def suggest_daily_menus_api(
             raw = call_json(
                 prompt,
                 system_prompt=(
-                    "你是简愈一人食菜单创作助手。"
-                    "用户第4次及以上生成时必须创作全新菜品，只输出 JSON。"
+                    "你是简愈一人食的专属地中海饮食主理人。服务对象是 45-65 岁注重抗炎、代谢重启和身心秩序的独立女性。"
+                    "每次生成必须创作全新菜品，且【严格符合真实烹饪逻辑与地中海饮食规范】。"
+                    "绝不能胡乱堆砌不搭调的食材（如水果炒肉等黑暗料理）。只输出 JSON。"
                 ),
             )
             raw = _normalize_raw_response(raw)
