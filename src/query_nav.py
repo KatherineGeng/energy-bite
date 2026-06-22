@@ -14,6 +14,26 @@ def clear_query_action() -> None:
     clear_query_key("act")
 
 
+def clear_meal_query() -> None:
+    remaining = {k: v for k, v in st.query_params.items() if k not in ("meal_act", "meal", "mid")}
+    st.query_params.from_dict(remaining)
+
+
+def qp_first(key: str) -> str | None:
+    val = st.query_params.get(key)
+    if isinstance(val, list):
+        return val[0] if val else None
+    return val
+
+
+def pop_query_param(key: str) -> str | None:
+    """Read a query param once and remove it from the URL immediately."""
+    val = qp_first(key)
+    if val:
+        clear_query_key(key)
+    return val
+
+
 def apply_query_nav(valid_pages: set[str]) -> None:
     nav = st.query_params.get("nav")
     if isinstance(nav, list):

@@ -36,7 +36,10 @@ SOLAR_TERMS_BY_YEAR: dict[int, list[tuple[str, int, int]]] = {
 
 
 def format_today_cn(d: date) -> str:
-    return f"今日{d.year}年{d.month}月{d.day}日，{WEEKDAY_CN[d.weekday()]}"
+    """Single header line: date · weekday · solar term (or 平常日)."""
+    term = solar_term_for_date(d)
+    weekday = WEEKDAY_CN[d.weekday()]
+    return f"今日{d.year}年{d.month}月{d.day}日 · {weekday} · {term}"
 
 
 def solar_term_for_date(d: date) -> str:

@@ -6,9 +6,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import re
+
 import pandas as pd
 
 from src.constants import (
+    DAILY_PLAN_FILE,
     INGREDIENTS_FILE,
     LOG_FILE,
     MENU_FILE,
@@ -17,6 +20,7 @@ from src.constants import (
     SCORE_MIN,
     WEIGHTS_FILE,
 )
+from src.meal_plan_utils import MEAL_ORDER, empty_meal_plan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = PROJECT_ROOT / "data"
@@ -59,6 +63,7 @@ WEIGHTS_COLUMNS = [
 FAVORITES_DISHES_COLUMNS = ["fav_id", "menu_id", "date", "saved_at"]
 FAVORITES_MENUS_COLUMNS = ["fav_id", "date", "menu_ids", "saved_at"]
 MORNING_CONTEXT_COLUMNS = ["date", "sleep", "load", "meal_count", "updated_at"]
+DAILY_PLAN_COLUMNS = ["date", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
 
 SEED_INGREDIENTS = """id,name,nutrition_category,role,notes
 ING_001,希腊酸奶(无糖),高钙|优质脂肪,主食|加餐,肠脑轴调节，提供色氨酸
@@ -155,6 +160,9 @@ def init_database(force: bool = False) -> None:
 
     if force or not _csv_path(MORNING_CONTEXT_FILE).exists():
         _write_csv(_empty_frame(MORNING_CONTEXT_COLUMNS), MORNING_CONTEXT_FILE)
+
+    if force or not _csv_path(DAILY_PLAN_FILE).exists():
+        _write_csv(_empty_frame(DAILY_PLAN_COLUMNS), DAILY_PLAN_FILE)
 
 
 def load_ingredients() -> pd.DataFrame:
@@ -381,6 +389,144 @@ def get_menu_weight(menu_id: str) -> float:
     return float(match.iloc[0]["final_weight"])
 
 
+def get_menu_pick_counts() -> dict[str, int]:
+    """How often each menu was chosen (logs + weight log_count)."""
+    counts: dict[str, int] = {}
+    logs = load_logs()
+    if not logs.empty:
+        for menu_id, n in logs["menu_id"].value_counts().items():
+            counts[str(menu_id)] = int(n)
+
+    weights = load_weights()
+    if not weights.empty:
+        for _, row in weights.iterrows():
+            menu_id = str(row["menu_id"])
+            log_count = int(row.get("log_count") or 0)
+            if log_count:
+                counts[menu_id] = counts.get(menu_id, 0) + log_count
+    return counts
+
+
+def get_menus_by_pick_frequency() -> pd.DataFrame:
+    """All menus sorted by selection frequency (desc), then name."""
+    menus = load_menus()
+    if menus.empty:
+        return menus
+
+    counts = get_menu_pick_counts()
+    menus = menus.copy()
+    menus["pick_count"] = menus["menu_id"].map(lambda mid: counts.get(str(mid), 0))
+    menus = menus.sort_values(["pick_count", "menu_name"], ascending=[False, True])
+    return menus
+
+
+def search_menus_by_keyword(query: str, limit: int = 6) -> pd.DataFrame:
+    """Fuzzy match menu names in the library (case-insensitive substring)."""
+    q = query.strip()
+    if len(q) < 2:
+        return _empty_frame(MENU_COLUMNS)
+
+    menus = load_menus()
+    if menus.empty:
+        return menus
+
+    mask = menus["menu_name"].str.contains(q, case=False, na=False)
+    # Also match description and energy tags
+    for col in ("description", "energy_tags"):
+        if col in menus.columns:
+            mask = mask | menus[col].astype(str).str.contains(q, case=False, na=False)
+
+    hits = menus[mask].copy()
+    if hits.empty:
+        return hits
+
+    counts = get_menu_pick_counts()
+    hits["pick_count"] = hits["menu_id"].map(lambda mid: counts.get(str(mid), 0))
+    return hits.sort_values(["pick_count", "menu_name"], ascending=[False, True]).head(limit)
+
+
+def match_ingredients_from_text(text: str) -> tuple[list[str], list[str]]:
+    """
+    Match free-text ingredient names to ingredient library IDs.
+    Returns (matched_ids, unmatched_user_tokens).
+    """
+    raw = text.strip()
+    if not raw:
+        return [], []
+
+    parts = [p.strip() for p in re.split(r"[、,，/|+\s]+", raw) if p.strip()]
+    ings = load_ingredients()
+    if ings.empty:
+        return [], parts
+
+    matched_ids: list[str] = []
+    unmatched: list[str] = []
+
+    for part in parts:
+        hit = ings[ings["name"].str.contains(re.escape(part), case=False, na=False)]
+        if hit.empty:
+            hit = ings[ings["name"].apply(lambda n: part in str(n) or str(n) in part)]
+        if not hit.empty:
+            ing_id = str(hit.iloc[0]["id"])
+            if ing_id not in matched_ids:
+                matched_ids.append(ing_id)
+        else:
+            unmatched.append(part)
+
+    return matched_ids, unmatched
+
+
+def append_manual_menu(
+    menu_name: str,
+    prep_minutes: int = 15,
+    ingredients_text: str = "",
+    ingredient_ids: list[str] | None = None,
+    energy_tags: str = "手工添加",
+    description: str = "",
+    meal_type: str = "午餐",
+    nutrition_categories: list[str] | None = None,
+) -> str:
+    """Create a hand-entered dish in the menu library."""
+    from src.nutrition_api import encode_nutrition_description
+
+    ids = list(ingredient_ids or [])
+    if not ids and ingredients_text.strip():
+        ids, _ = match_ingredients_from_text(ingredients_text)
+
+    if ids:
+        known = set(load_ingredients()["id"].tolist())
+        missing = [i for i in ids if i not in known]
+        if missing:
+            raise ValueError(f"未知食材 ID: {', '.join(missing)}")
+
+    ing_text = ingredients_text.strip()
+    if nutrition_categories:
+        desc = encode_nutrition_description(ing_text, nutrition_categories)
+    elif description.strip():
+        desc = description.strip()
+    else:
+        desc = ing_text or "手工添加"
+
+    df = load_menus()
+    menu_id = next_menu_id()
+    ids_text = "|".join(ids)
+    tags = parse_energy_tags(energy_tags)
+    tags_text = "·".join(tags) if tags else energy_tags
+
+    row = {
+        "menu_id": menu_id,
+        "menu_name": menu_name.strip(),
+        "ingredient_ids": ids_text,
+        "energy_tags": tags_text,
+        "meal_type": meal_type,
+        "prep_minutes": int(prep_minutes),
+        "description": desc,
+    }
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(df, MENU_FILE)
+    return menu_id
+
+
 def append_menu_from_share(
     ingredient_ids: list[str],
     energy_tags: str,
@@ -415,6 +561,72 @@ def append_menu_from_share(
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, MENU_FILE)
     return menu_id
+
+
+def _parse_plan_column(value: str) -> list[str]:
+    text = str(value or "").strip()
+    if not text or text.lower() == "nan":
+        return []
+    return [part.strip() for part in text.split("|") if part.strip() and part.strip().lower() != "nan"]
+
+
+def _plan_dict_from_row(row: pd.Series) -> dict[str, list[str]]:
+    return {
+        "早餐": _parse_plan_column(row.get("breakfast", "")),
+        "午餐": _parse_plan_column(row.get("lunch", "")),
+        "晚餐": _parse_plan_column(row.get("dinner", "")),
+    }
+
+
+def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: bool) -> None:
+    """Persist draft or confirmed meal plan for a date."""
+    df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+    row = {
+        "date": day,
+        "breakfast": "|".join(plan.get("早餐", [])),
+        "lunch": "|".join(plan.get("午餐", [])),
+        "dinner": "|".join(plan.get("晚餐", [])),
+        "confirmed": "true" if confirmed else "false",
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if df.empty:
+        out = pd.DataFrame([row])
+    else:
+        df = df[df["date"] != day]
+        out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(out[DAILY_PLAN_COLUMNS], DAILY_PLAN_FILE)
+
+
+def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
+    df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+    if df.empty:
+        return None
+    rows = df[df["date"] == day]
+    if rows.empty:
+        return None
+    row = rows.iloc[-1]
+    plan = _plan_dict_from_row(row)
+    menu_ids: list[str] = []
+    for meal in MEAL_ORDER:
+        menu_ids.extend(plan.get(meal, []))
+    confirmed = str(row.get("confirmed", "")).lower() in ("true", "1", "yes")
+    return {
+        "date": day,
+        "plan": plan,
+        "menu_ids": menu_ids,
+        "confirmed": confirmed,
+        "updated_at": str(row.get("updated_at", "")),
+    }
+
+
+def list_meal_plan_dates(*, confirmed_only: bool = False) -> list[str]:
+    df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+    if df.empty:
+        return []
+    if confirmed_only:
+        df = df[df["confirmed"].astype(str).str.lower().isin(["true", "1", "yes"])]
+    dates = sorted(df["date"].astype(str).unique().tolist(), reverse=True)
+    return dates
 
 
 def load_morning_context(day: str) -> dict[str, Any] | None:

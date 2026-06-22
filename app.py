@@ -13,6 +13,7 @@ from src.database import init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
+from src.session_hydrate import hydrate_today_state
 from src.theme import inject_theme_assets
 from pages import export_poster, morning, night_checkin
 
@@ -24,6 +25,7 @@ st.set_page_config(
 )
 
 init_database()
+hydrate_today_state()
 inject_pwa_head()
 inject_theme_assets()
 inject_mobile_css()
@@ -38,6 +40,10 @@ if "today_menus" not in st.session_state:
     st.session_state.today_menus = []
 if "current_day_menus" not in st.session_state:
     st.session_state.current_day_menus = []
+if "meal_plan" not in st.session_state:
+    st.session_state.meal_plan = {"早餐": [], "午餐": [], "晚餐": []}
+if "final_meal_plan" not in st.session_state:
+    st.session_state.final_meal_plan = {"早餐": [], "午餐": [], "晚餐": []}
 if "final_daily_list" not in st.session_state:
     st.session_state.final_daily_list = []
 if "menu_locked" not in st.session_state:
@@ -50,6 +56,20 @@ if "show_share_guide" not in st.session_state:
     st.session_state.show_share_guide = False
 if "review_complete" not in st.session_state:
     st.session_state.review_complete = False
+if "eb_add_ui" not in st.session_state:
+    st.session_state.eb_add_ui = None
+if "menu_gen_count" not in st.session_state:
+    st.session_state.menu_gen_count = 0
+if "menu_gen_date" not in st.session_state:
+    st.session_state.menu_gen_date = date.today().isoformat()
+if "last_gen_source" not in st.session_state:
+    st.session_state.last_gen_source = None
+if "last_gen_note" not in st.session_state:
+    st.session_state.last_gen_note = None
+if "ai_fresh_menu_ids" not in st.session_state:
+    st.session_state.ai_fresh_menu_ids = []
+if "export_tab_key" not in st.session_state:
+    st.session_state.export_tab_key = "poster"
 
 PAGE_MAP = {
     "morning": morning.render,

@@ -45,6 +45,24 @@ def encode_share_code(
     return f"{PREFIX}{ids_text}:{tags_text}:{score:.2f}{SUFFIX}"
 
 
+def encode_day_menu_share_text(date_str: str, menu_rows: list[dict]) -> str:
+    """Build a copy-paste block with one share code per dish for a day's menu."""
+    lines = [f"【{date_str} 简愈一人食】"]
+    for row in menu_rows:
+        score = 0.0
+        code = encode_share_code(
+            ingredient_ids=str(row.get("ingredient_ids", "")),
+            energy_tags=str(row.get("energy_tags", "")),
+            estimated_score=score,
+        )
+        meal = row.get("meal_type", "")
+        name = row.get("menu_name", "")
+        prefix = f"{meal}·" if meal else ""
+        lines.append(f"{prefix}{name}")
+        lines.append(code)
+    return "\n".join(lines)
+
+
 def decode_share_code(code: str) -> ShareCodePayload:
     if not code or not str(code).strip():
         raise ShareCodeError("口令不能为空")

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 # Bump this on every deploy so users can verify Streamlit Cloud picked up the build.
-APP_VERSION = "4.3.0"
+APP_VERSION = "4.7.3"
+
+# 每日前 N 次「生成/换套」走菜品库，第 N+1 次起走 AI（若已配置 API）
+LIBRARY_GEN_MAX = 3
 
 # Canonical nutrition categories for radar chart (7 axes)
 NUTRITION_CATEGORIES = [
@@ -78,6 +81,7 @@ MENU_FILE = "menu_db.csv"
 LOG_FILE = "log_db.csv"
 WEIGHTS_FILE = "menu_weights.csv"
 MORNING_CONTEXT_FILE = "morning_context.csv"
+DAILY_PLAN_FILE = "daily_meal_plans.csv"
 
 SCORE_MIN = 1
 SCORE_MAX = 5

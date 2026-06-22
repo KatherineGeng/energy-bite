@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+      color: #1E293B;
+    }
+    .wrap { padding: 0.15rem 0.1rem 0.35rem; }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.45rem;
+    }
+    .title { font-size: 0.95rem; font-weight: 600; color: #1E293B; }
+    .nav {
+      border: 1px solid rgba(141, 163, 153, 0.45);
+      background: #fff;
+      color: #8DA399;
+      border-radius: 8px;
+      width: 2rem;
+      height: 2rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .legend {
+      display: flex;
+      gap: 0.85rem;
+      font-size: 0.68rem;
+      color: #64748B;
+      margin-bottom: 0.35rem;
+    }
+    .legend i {
+      display: inline-block;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      margin-right: 0.2rem;
+      vertical-align: middle;
+    }
+    .dot-confirmed { background: #8DA399; }
+    .dot-draft { background: #E8B86D; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.2rem;
+    }
+    .wd {
+      text-align: center;
+      font-size: 0.68rem;
+      color: #94A3B8;
+      padding: 0.15rem 0;
+    }
+    .day {
+      position: relative;
+      aspect-ratio: 1;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: #64748B;
+      font-size: 0.82rem;
+      cursor: pointer;
+      padding: 0;
+    }
+    .day.empty { visibility: hidden; pointer-events: none; }
+    .day.has-menu { color: #1E293B; font-weight: 600; }
+    .day.selected {
+      background: rgba(141, 163, 153, 0.18);
+      border-color: rgba(141, 163, 153, 0.55);
+      color: #1E293B;
+    }
+    .day.today:not(.selected) {
+      border-color: rgba(141, 163, 153, 0.35);
+    }
+    .mark {
+      position: absolute;
+      left: 50%;
+      bottom: 0.18rem;
+      transform: translateX(-50%);
+      width: 0.34rem;
+      height: 0.34rem;
+      border-radius: 50%;
+    }
+    .mark.confirmed { background: #8DA399; }
+    .mark.draft { background: #E8B86D; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <button class="nav" id="prev" aria-label="上个月">‹</button>
+      <div class="title" id="title"></div>
+      <button class="nav" id="next" aria-label="下个月">›</button>
+    </div>
+    <div class="legend">
+      <span><i class="dot-confirmed"></i>已确认菜单</span>
+      <span><i class="dot-draft"></i>草稿菜单</span>
+    </div>
+    <div class="grid" id="weekdays"></div>
+    <div class="grid" id="days"></div>
+  </div>
+  <script>
+    (function () {
+      const Streamlit = window.Streamlit || window.parent.Streamlit;
+      if (!Streamlit) return;
+
+      const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+      let viewYear = null;
+      let viewMonth = null;
+      let marked = {};
+      let selected = "";
+      let todayIso = new Date().toISOString().slice(0, 10);
+
+      function pad(n) { return String(n).padStart(2, "0"); }
+      function iso(y, m, d) { return `${y}-${pad(m)}-${pad(d)}`; }
+
+      function renderWeekdays() {
+        const el = document.getElementById("weekdays");
+        el.innerHTML = WEEKDAYS.map(w => `<div class="wd">${w}</div>`).join("");
+      }
+
+      function renderCalendar() {
+        document.getElementById("title").textContent = `${viewYear}年${viewMonth}月`;
+        const first = new Date(viewYear, viewMonth - 1, 1);
+        let start = first.getDay();
+        start = start === 0 ? 6 : start - 1; // Monday-first
+        const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+        const cells = [];
+        for (let i = 0; i < start; i++) cells.push('<button class="day empty"></button>');
+        for (let d = 1; d <= daysInMonth; d++) {
+          const id = iso(viewYear, viewMonth, d);
+          const markType = marked[id] || "";
+          const classes = ["day"];
+          if (markType) classes.push("has-menu");
+          if (id === selected) classes.push("selected");
+          if (id === todayIso) classes.push("today");
+          const dot = markType
+            ? `<span class="mark ${markType === "confirmed" ? "confirmed" : "draft"}"></span>`
+            : "";
+          cells.push(
+            `<button class="${classes.join(" ")}" data-date="${id}">${d}${dot}</button>`
+          );
+        }
+        document.getElementById("days").innerHTML = cells.join("");
+
+        document.querySelectorAll(".day[data-date]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            selected = btn.getAttribute("data-date");
+            Streamlit.setComponentValue(selected);
+            renderCalendar();
+          });
+        });
+      }
+
+      function shiftMonth(delta) {
+        viewMonth += delta;
+        if (viewMonth < 1) { viewMonth = 12; viewYear -= 1; }
+        if (viewMonth > 12) { viewMonth = 1; viewYear += 1; }
+        renderCalendar();
+        Streamlit.setFrameHeight(document.body.scrollHeight + 8);
+      }
+
+      document.getElementById("prev").addEventListener("click", () => shiftMonth(-1));
+      document.getElementById("next").addEventListener("click", () => shiftMonth(1));
+
+      Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, (event) => {
+        const args = event.detail.args || {};
+        marked = args.marked_dates || {};
+        selected = args.selected_date || todayIso;
+        const base = selected ? new Date(selected) : new Date();
+        viewYear = base.getFullYear();
+        viewMonth = base.getMonth() + 1;
+        renderWeekdays();
+        renderCalendar();
+        Streamlit.setFrameHeight(document.body.scrollHeight + 8);
+      });
+
+      Streamlit.setComponentReady();
+      Streamlit.setFrameHeight(320);
+    })();
+  </script>
+</body>
+</html>

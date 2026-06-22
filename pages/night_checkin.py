@@ -1,4 +1,4 @@
-"""晚间回顾 — 简愈一人食 V4.0."""
+"""回顾页 — 晨间三问 + 晚间回顾."""
 
 from __future__ import annotations
 
@@ -7,13 +7,16 @@ from datetime import date
 import streamlit as st
 
 from src.algorithm import recalculate_weights
+from src.constants import LOAD_OPTIONS, MEAL_COUNT_OPTIONS, SLEEP_OPTIONS
 from src.database import (
     append_log,
     get_menu_by_id,
     init_database,
     save_favorite_dish,
     save_favorite_menu_set,
+    save_morning_context,
 )
+from src.session_hydrate import get_confirmed_plan, hydrate_today_state
 from src.theme import ACCENT, page_title, section_title
 
 SCORE_OPTIONS = [1, 2, 3, 4, 5]
@@ -65,19 +68,48 @@ def _inject_review_card_css() -> None:
     )
 
 
-def render() -> None:
-    init_database()
-    _inject_review_card_css()
+def _render_morning_section(today_iso: str) -> None:
+    section_title("fa-sun", "晨间三问")
 
-    page_title("fa-leaf", "晚间回顾", "逐道回顾今日餐食，再回望全天身心状态。")
+    sleep = st.radio(
+        "一、昨晚睡眠状态",
+        SLEEP_OPTIONS,
+        horizontal=True,
+        key="morning_sleep",
+    )
+    load = st.radio(
+        "二、今日脑力/体力消耗",
+        LOAD_OPTIONS,
+        horizontal=True,
+        key="morning_load",
+    )
+    meal_count = st.radio(
+        "三、今日一人食餐数",
+        MEAL_COUNT_OPTIONS,
+        horizontal=True,
+        key="morning_meal_count",
+        format_func=lambda x: f"{x} 餐",
+    )
 
-    if not st.session_state.get("menu_locked") or not st.session_state.get("final_daily_list"):
-        st.warning("请先前往【晨间餐饮】确认今日计划，再回来回顾。")
-        return
+    if st.button("保存晨间记录", type="secondary", use_container_width=True, key="save_morning_context"):
+        save_morning_context(today_iso, sleep, load, int(meal_count))
+        st.session_state.morning_inputs = {
+            "sleep": sleep,
+            "load": load,
+            "meal_count": int(meal_count),
+        }
+        st.session_state.morning_context_loaded = today_iso
+        st.session_state.record_saved_flash = True
+        st.rerun()
 
-    menu_ids: list[str] = list(st.session_state.final_daily_list)
+    if st.session_state.pop("record_saved_flash", False):
+        st.success("晨间记录已保存 · 可前往「菜单」生成今日餐食。")
+
+
+def _render_evening_section(confirmed: dict) -> None:
+    menu_ids: list[str] = list(confirmed["menu_ids"])
     morning = st.session_state.get("morning_inputs", {})
-    today = st.session_state.get("today_date", date.today().isoformat())
+    today = confirmed["date"]
 
     section_title("fa-utensils", "今日餐食评价")
 
@@ -179,3 +211,24 @@ def render() -> None:
         '<p class="eb-ritual">我度过了快乐健康的一天</p>',
         unsafe_allow_html=True,
     )
+
+
+def render() -> None:
+    init_database()
+    hydrate_today_state()
+    _inject_review_card_css()
+
+    page_title("fa-leaf", "回顾", "记录晨间状态，回顾今日餐食与身心感受。")
+
+    today_iso = st.session_state.get("today_date", date.today().isoformat())
+    _render_morning_section(today_iso)
+
+    confirmed = get_confirmed_plan(today_iso)
+    if not confirmed:
+        st.warning("请先在「菜单」页确认今日就餐计划，再填写下方晚间回顾。")
+        return
+
+    st.divider()
+    section_title("fa-moon", "晚间回顾")
+    st.caption("以下为您在「今日菜单」中已确认的就餐计划。")
+    _render_evening_section(confirmed)
