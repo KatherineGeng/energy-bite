@@ -96,13 +96,33 @@ def _inject_review_card_css() -> None:
             width: 100% !important;
             gap: 0.2rem !important;
         }}
-        div[data-testid="stRadio"] label {{
+        .eb-evening-review div[data-testid="stRadio"] label {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
             max-width: 20% !important;
             padding: 0.35rem 0.1rem !important;
             justify-content: center !important;
             font-size: 1rem !important;
+        }}
+        .eb-morning-block [data-testid="stWidgetLabel"] {{
+            display: none !important;
+        }}
+        .eb-morning-block .eb-morning-q-title {{
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #1E293B;
+            margin: 0.5rem 0 0.25rem;
+            white-space: nowrap;
+        }}
+        .eb-morning-block div[data-testid="stRadio"] > div {{
+            flex-wrap: nowrap !important;
+        }}
+        .eb-morning-block div[data-testid="stRadio"] label {{
+            flex: 1 1 auto !important;
+            max-width: none !important;
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            padding: 0.35rem 0.25rem !important;
         }}
         .eb-dish-meta {{
             font-size: 1rem;
@@ -132,26 +152,36 @@ def _inject_review_card_css() -> None:
 def _render_morning_section(today_iso: str) -> None:
     section_title("fa-sun", "晨间三问")
     st.caption(morning_greeting())
+    st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
 
+    st.markdown('<p class="eb-morning-q-title">一、昨晚睡眠状态</p>', unsafe_allow_html=True)
     sleep = st.radio(
-        "一、昨晚睡眠状态",
+        "昨晚睡眠状态",
         SLEEP_OPTIONS,
         horizontal=True,
+        label_visibility="collapsed",
         key="morning_sleep",
     )
+
+    st.markdown('<p class="eb-morning-q-title">二、今日脑力/体力消耗</p>', unsafe_allow_html=True)
     load = st.radio(
-        "二、今日脑力/体力消耗",
+        "脑力体力消耗",
         LOAD_OPTIONS,
         horizontal=True,
+        label_visibility="collapsed",
         key="morning_load",
     )
+
+    st.markdown('<p class="eb-morning-q-title">三、今日一人食餐数</p>', unsafe_allow_html=True)
     meal_count = st.radio(
-        "三、今日一人食餐数",
+        "一人食餐数",
         MEAL_COUNT_OPTIONS,
         horizontal=True,
+        label_visibility="collapsed",
         key="morning_meal_count",
         format_func=lambda x: f"{x} 餐",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("保存晨间记录", type="secondary", use_container_width=True, key="save_morning_context"):
         save_morning_context(today_iso, sleep, load, int(meal_count))
@@ -175,6 +205,7 @@ def _render_evening_section(confirmed: dict) -> None:
 
     section_title("fa-utensils", "今日餐食评价")
 
+    st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     for menu_id in menu_ids:
         menu_row = get_menu_by_id(menu_id)
         if not menu_row:
@@ -278,6 +309,8 @@ def _render_evening_section(confirmed: dict) -> None:
         st.session_state.review_complete = True
         st.session_state.current_page = "export"
         st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         f'<p class="eb-ritual">{_ritual_line()}</p>',

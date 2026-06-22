@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -40,6 +41,28 @@ from src.query_nav import pop_query_param
 from src.recommendation import format_ingredient_names, get_daily_menus
 from src.theme import section_title
 from src.user_profile import planning_prompt
+
+
+def _page_query_href(**params: str) -> str:
+    page = st.session_state.get("current_page", "morning")
+    parts = [f"nav={quote(page)}"]
+    for key, val in params.items():
+        if val:
+            parts.append(f"{quote(key)}={quote(val)}")
+    return "?" + "&".join(parts)
+
+
+def _render_link_row(links: list[tuple[str, str, str]]) -> None:
+    """Render horizontal HTML link buttons: (href, label, extra_class)."""
+    parts: list[str] = []
+    for href, label, extra in links:
+        cls = "eb-meal-action-btn" + (f" {extra}" if extra else "")
+        parts.append(f'<a class="{cls}" href="{href}">{label}</a>')
+    st.markdown(f'<div class="eb-meal-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
+
+
+def _flash(msg: str) -> None:
+    st.session_state.eb_flash = msg
 
 
 def _has_morning_context(today_iso: str) -> bool:
@@ -180,6 +203,40 @@ def _close_add_panel() -> None:
     st.session_state.eb_add_ui = None
 
 
+def _try_confirm_new_dish(meal_type: str) -> None:
+    ui = st.session_state.get("eb_add_ui") or {}
+    dish_name = str(ui.get("draft_name", "")).strip()
+    ing_key = f"new_ing_{meal_type}"
+    prep_key = f"new_prep_{meal_type}"
+    analysis_key = f"nutr_result_{meal_type}"
+    ing_text = str(st.session_state.get(ing_key, "")).strip()
+    prep = int(st.session_state.get(prep_key, 15))
+    analysis = st.session_state.get(analysis_key)
+
+    if not ing_text:
+        _flash("请填写食材。")
+        return
+    if not dish_name:
+        _flash("菜品名称不能为空。")
+        return
+    if not analysis or not analysis.get("categories"):
+        _flash("请先点击「分析营养覆盖」。")
+        return
+
+    menu_id = append_manual_menu(
+        dish_name,
+        prep_minutes=prep,
+        ingredients_text=ing_text,
+        ingredient_ids=list(analysis.get("ingredient_ids", [])),
+        energy_tags=str(analysis.get("energy_tags", "手工添加")),
+        nutrition_categories=list(analysis.get("categories", [])),
+        meal_type=meal_type,
+    )
+    st.session_state.pop(analysis_key, None)
+    _add_to_slot(meal_type, menu_id)
+    _close_add_panel()
+
+
 def _today_gen_count() -> int:
     today = date.today().isoformat()
     if st.session_state.get("menu_gen_date") != today:
@@ -317,46 +374,23 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
         if analysis.get("unmatched"):
             st.caption("未入库食材：" + "、".join(analysis["unmatched"]))
 
-    if st.button(
-        "确认入库并加入本餐",
-        type="primary",
-        use_container_width=True,
-        key=f"submit_new_{meal_type}",
-    ):
-        if not ing_text:
-            st.warning("请填写食材。")
-        elif not dish_name.strip():
-            st.warning("菜品名称不能为空。")
-        elif not analysis or not analysis.get("categories"):
-            st.warning("请先点击「分析营养覆盖」。")
-        else:
-            menu_id = append_manual_menu(
-                dish_name.strip(),
-                prep_minutes=int(prep),
-                ingredients_text=ing_text,
-                ingredient_ids=list(analysis.get("ingredient_ids", [])),
-                energy_tags=str(analysis.get("energy_tags", "手工添加")),
-                nutrition_categories=list(analysis.get("categories", [])),
-                meal_type=meal_type,
-            )
-            st.session_state.pop(analysis_key, None)
-            _add_to_slot(meal_type, menu_id)
-            _close_add_panel()
-            st.rerun()
-
-    st.button(
-        "返回搜索",
-        key=f"back_search_{meal_type}",
-        use_container_width=True,
-        on_click=_on_back_manual_search,
-        args=(meal_type,),
-    )
-    st.button(
-        "取消",
-        key=f"cancel_create_{meal_type}",
-        use_container_width=True,
-        on_click=_close_add_panel,
-    )
+    _render_link_row([
+        (
+            _page_query_href(ui_act="confirm_new", meal=meal_type),
+            "确认入库并加入本餐",
+            "primary",
+        ),
+        (
+            _page_query_href(ui_act="back_search", meal=meal_type),
+            "返回搜索",
+            "",
+        ),
+        (
+            _page_query_href(ui_act="cancel_add"),
+            "取消",
+            "",
+        ),
+    ])
 
 
 def _render_manual_add(meal_type: str, ui: dict) -> None:
@@ -396,22 +430,23 @@ def _render_manual_add(meal_type: str, ui: dict) -> None:
             st.caption("库内暂无相似名称，可作为新菜品录入。")
 
     if query:
-        st.button(
-            "确认为新菜品",
-            key=f"new_dish_{meal_type}",
-            use_container_width=True,
-            on_click=_on_start_new_dish,
-            args=(meal_type,),
-        )
+        _render_link_row([
+            (
+                _page_query_href(ui_act="new_dish", meal=meal_type),
+                "确认为新菜品",
+                "primary",
+            ),
+            (
+                _page_query_href(ui_act="cancel_add"),
+                "取消",
+                "",
+            ),
+        ])
     else:
         st.caption("请先输入菜品名称。")
-
-    st.button(
-        "取消",
-        key=f"cancel_manual_{meal_type}",
-        use_container_width=True,
-        on_click=_close_add_panel,
-    )
+        _render_link_row([
+            (_page_query_href(ui_act="cancel_add"), "取消", ""),
+        ])
 
 
 def _render_add_panel(meal_type: str) -> None:
@@ -431,12 +466,9 @@ def _render_add_panel(meal_type: str) -> None:
     ranked = get_menus_by_pick_frequency()
     if ranked.empty:
         st.info("菜单库暂无菜品")
-        st.button(
-            "关闭",
-            key=f"close_library_empty_{meal_type}",
-            use_container_width=True,
-            on_click=_close_add_panel,
-        )
+        _render_link_row([
+            (_page_query_href(ui_act="cancel_add"), "关闭", ""),
+        ])
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -455,12 +487,9 @@ def _render_add_panel(meal_type: str) -> None:
 
     if not options:
         st.info("该餐次已包含菜单库中的全部菜品")
-        st.button(
-            "关闭",
-            key=f"close_library_full_{meal_type}",
-            use_container_width=True,
-            on_click=_close_add_panel,
-        )
+        _render_link_row([
+            (_page_query_href(ui_act="cancel_add"), "关闭", ""),
+        ])
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -476,13 +505,29 @@ def _render_add_panel(meal_type: str) -> None:
             _close_add_panel()
             st.rerun()
 
-    st.button(
-        "取消",
-        key=f"cancel_library_{meal_type}",
-        use_container_width=True,
-        on_click=_close_add_panel,
-    )
+    _render_link_row([
+        (_page_query_href(ui_act="cancel_add"), "取消", ""),
+    ])
     st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _apply_ui_query_actions() -> None:
+    ui_act = pop_query_param("ui_act")
+    if not ui_act:
+        return
+    meal = pop_query_param("meal")
+    if ui_act == "back_search" and meal:
+        _on_back_manual_search(meal)
+        st.rerun()
+    elif ui_act == "cancel_add":
+        _close_add_panel()
+        st.rerun()
+    elif ui_act == "confirm_new" and meal:
+        _try_confirm_new_dish(meal)
+        st.rerun()
+    elif ui_act == "new_dish" and meal:
+        _on_start_new_dish(meal)
+        st.rerun()
 
 
 def _apply_meal_query_actions() -> None:
@@ -622,7 +667,11 @@ def render() -> None:
     today_iso = st.session_state.get("today_date", date.today().isoformat())
 
     legacy_act = pop_query_param("act")
+    _apply_ui_query_actions()
     _apply_meal_query_actions()
+
+    if msg := st.session_state.pop("eb_flash", None):
+        st.warning(msg)
 
     locked = st.session_state.get("menu_locked", False)
 

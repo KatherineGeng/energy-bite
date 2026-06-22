@@ -16,7 +16,7 @@ def render_gallery_picker(key: str, *, max_select: int = 2) -> list[bytes]:
         st.caption("图片库暂无图片。上传餐食照片后会自动收录。")
         return []
 
-    st.caption("从 App 图片库选择（可多选）")
+    st.caption(f"从 App 图片库选择（共 {len(images)} 张，可多选）")
     selected_ids: list[str] = st.session_state.get(key, [])
     cols = st.columns(3)
     for i, row in enumerate(images[:12]):

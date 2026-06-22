@@ -63,13 +63,17 @@ def _render_images_tab() -> None:
         accept_multiple_files=True,
         key="admin_image_upload",
     )
-    if uploaded and st.button("导入到图片库", key="admin_import_images"):
-        for f in uploaded:
-            save_app_image(f.getvalue(), source="admin", title=f.name)
-        st.success(f"已导入 {len(uploaded)} 张图片")
-        st.rerun()
+    if uploaded:
+        sig = tuple((f.name, len(f.getvalue())) for f in uploaded)
+        if st.session_state.get("admin_last_import_sig") != sig:
+            for f in uploaded:
+                save_app_image(f.getvalue(), source="admin", title=f.name)
+            st.session_state.admin_last_import_sig = sig
+            st.success(f"已导入 {len(uploaded)} 张图片")
+            st.rerun()
 
     images = list_app_images()
+    st.caption(f"图片库共 {len(images)} 张")
     if not images:
         st.info("图片库为空。")
         return

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -83,7 +84,7 @@ USER_PROFILE_COLUMNS = [
     "updated_at",
 ]
 APP_IMAGES_FILE = "app_images.csv"
-APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at"]
+APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at", "data_b64"]
 APP_IMAGES_DIR = DATA_PATH / "app_images"
 MORNING_CONTEXT_COLUMNS = ["date", "sleep", "load", "meal_count", "updated_at"]
 DAILY_PLAN_COLUMNS = ["date", "breakfast", "lunch", "dinner", "confirmed", "updated_at"]
@@ -604,6 +605,7 @@ def save_app_image(data: bytes, *, source: str = "user", title: str = "") -> str
         "source": source,
         "title": title or filename,
         "created_at": datetime.now().isoformat(timespec="seconds"),
+        "data_b64": base64.b64encode(data).decode("ascii"),
     }
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, APP_IMAGES_FILE)
@@ -625,7 +627,14 @@ def get_app_image_bytes(image_id: str) -> bytes | None:
     rows = df[df["image_id"] == image_id]
     if rows.empty:
         return None
-    filename = str(rows.iloc[-1]["filename"])
+    row = rows.iloc[-1]
+    b64 = str(row.get("data_b64", "")).strip()
+    if b64:
+        try:
+            return base64.b64decode(b64)
+        except Exception:
+            pass
+    filename = str(row["filename"])
     path = APP_IMAGES_DIR / filename
     if path.exists():
         return path.read_bytes()

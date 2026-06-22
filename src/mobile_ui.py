@@ -61,7 +61,7 @@ def inject_mobile_css() -> None:
         }}
         p, span, label, .stMarkdown {{
             overflow-wrap: break-word !important;
-            word-break: break-word !important;
+            word-break: keep-all !important;
         }}
         .eb-action-row {{
             display: flex !important;
@@ -168,6 +168,12 @@ def inject_mobile_css() -> None:
             border: 1px solid rgba(141, 163, 153, 0.32) !important;
             -webkit-tap-highlight-color: transparent;
             white-space: nowrap !important;
+        }}
+        .eb-meal-action-btn.primary {{
+            background: {ACCENT} !important;
+            color: #fff !important;
+            border-color: {ACCENT} !important;
+            font-weight: 600 !important;
         }}
         [data-testid="stColumn"] .stPopover > button {{
             width: auto !important;
@@ -397,17 +403,22 @@ def render_primary_action_link(
         st.markdown(f'<div style="text-align:center"><a class="{cls}" href="{_action_href(act)}">{inner}</a></div>', unsafe_allow_html=True)
 
 
+def _meal_action_href(meal_act: str, meal_type: str, menu_id: str | None = None) -> str:
+    page = st.session_state.get("current_page", "morning")
+    href = f"?nav={quote(page)}&meal_act={quote(meal_act)}&meal={quote(meal_type)}"
+    if menu_id:
+        href += f"&mid={quote(menu_id)}"
+    return href
+
+
 def render_meal_action_row(
     meal_type: str,
     items: list[tuple[str, str, str | None]],
 ) -> None:
     """Horizontal meal edit links: (act_key, label, menu_id or None)."""
     parts: list[str] = []
-    meal_q = quote(meal_type)
     for act, label, menu_id in items:
-        href = f"?meal_act={act}&meal={meal_q}"
-        if menu_id:
-            href += f"&mid={quote(menu_id)}"
+        href = _meal_action_href(act, meal_type, menu_id)
         parts.append(f'<a class="eb-meal-action-btn" href="{href}">{label}</a>')
     st.markdown(f'<div class="eb-meal-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
 
