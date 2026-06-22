@@ -11,7 +11,12 @@ import streamlit as st
 from pages import export_poster, morning, night_checkin
 from src.constants import APP_VERSION
 from src.database import count_favorited_menus, init_database
-from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
+from src.mobile_ui import (
+    apply_query_nav,
+    inject_mobile_css,
+    render_bottom_nav,
+    render_top_header,
+)
 from src.pwa_head import inject_pwa_head
 from src.theme import inject_theme_assets
 
@@ -56,6 +61,8 @@ PAGE_MAP = {
     "export": export_poster.render,
 }
 
+apply_query_nav(set(PAGE_MAP.keys()))
+
 render_top_header(st.session_state.today_date, count_favorited_menus())
 PAGE_MAP[st.session_state.current_page]()
-render_bottom_nav()
+render_bottom_nav(st.session_state.current_page)

@@ -9,6 +9,7 @@ import streamlit as st
 from src.database import get_ingredient_map, get_menu_by_id, init_database, load_menus
 from src.nutrition import coverage_summary
 from src.recommendation import format_ingredient_names, get_daily_menus
+from src.mobile_ui import clear_query_action, render_action_row
 from src.theme import page_title, section_title
 
 
@@ -64,31 +65,38 @@ def render() -> None:
     load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
     meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
 
-    col1, col2 = st.columns(2, gap="small")
-    with col1:
-        if st.button("生成菜单", type="primary", use_container_width=True, key="gen_menus", disabled=locked):
-            recs = get_daily_menus(sleep, load, int(meal_count))
-            st.session_state.morning_inputs = {"sleep": sleep, "load": load, "meal_count": int(meal_count)}
-            _store_recommendations(recs)
-            st.session_state.today_date = date.today().isoformat()
-            st.rerun()
-    with col2:
-        if st.button("换一套", use_container_width=True, key="shuffle_menus", disabled=locked):
-            morning = _get_morning_inputs()
-            current = st.session_state.get("current_day_menus", [])
-            new_recs = get_daily_menus(
-                morning.get("sleep", sleep),
-                morning.get("load", load),
-                int(morning.get("meal_count", meal_count)),
-                shuffle=True,
-                exclude_menu_ids=current if current else None,
-            )
-            _store_recommendations(new_recs)
-            st.rerun()
+    render_action_row(
+        [
+            ("gen", "🍴", "生成", True, locked),
+            ("shuffle", "🔀", "换套", False, locked),
+        ]
+    )
+
+    act = st.query_params.get("act")
+    if act == "gen" and not locked:
+        recs = get_daily_menus(sleep, load, int(meal_count))
+        st.session_state.morning_inputs = {"sleep": sleep, "load": load, "meal_count": int(meal_count)}
+        _store_recommendations(recs)
+        st.session_state.today_date = date.today().isoformat()
+        clear_query_action()
+        st.rerun()
+    if act == "shuffle" and not locked:
+        morning = _get_morning_inputs()
+        current = st.session_state.get("current_day_menus", [])
+        new_recs = get_daily_menus(
+            morning.get("sleep", sleep),
+            morning.get("load", load),
+            int(morning.get("meal_count", meal_count)),
+            shuffle=True,
+            exclude_menu_ids=current if current else None,
+        )
+        _store_recommendations(new_recs)
+        clear_query_action()
+        st.rerun()
 
     menu_ids: list[str] = list(st.session_state.get("current_day_menus", []))
     if not menu_ids:
-        st.info("点击「生成菜单」或「换一套」，开始规划今日一人食。")
+        st.info("点击「生成」或「换套」，开始规划今日一人食。")
         return
 
     section_title("fa-clipboard-list", "今日菜单")

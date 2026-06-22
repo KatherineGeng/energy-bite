@@ -1,23 +1,28 @@
-"""Inject PWA / iOS icons into the parent document <head> (Streamlit workaround)."""
+"""Inject PWA / iOS icons — three strategies for Streamlit Cloud + iOS Safari."""
 
 from __future__ import annotations
 
 import base64
 from pathlib import Path
 
+import streamlit as st
 import streamlit.components.v1 as components
+
+from src.constants import APP_VERSION
 
 _ROOT = Path(__file__).resolve().parent.parent
 _ICON = _ROOT / "apple-touch-icon.png"
 if not _ICON.exists():
     _ICON = _ROOT / "assets" / "apple-touch-icon.png"
 
-# Public fallback if data-URI is blocked by iOS in some contexts.
-_ICON_URL = "https://raw.githubusercontent.com/KatherineGeng/energy-bite/main/apple-touch-icon.png"
+# Strategy B: public CDN URL (iOS 最可靠，需已 push 到 GitHub main)
+_ICON_URL = f"https://raw.githubusercontent.com/KatherineGeng/energy-bite/main/apple-touch-icon.png?v={APP_VERSION}"
 
 
 def inject_pwa_head() -> None:
+    """A: page_icon in set_page_config  B: GitHub PNG in <head>  C: data-URI fallback."""
     if not _ICON.exists():
+        st.warning("图标文件缺失：apple-touch-icon.png")
         return
 
     icon_b64 = base64.b64encode(_ICON.read_bytes()).decode("ascii")
@@ -27,47 +32,55 @@ def inject_pwa_head() -> None:
         f"""
         <script>
         (function () {{
-            const doc = window.parent.document;
-            const href = "{data_uri}";
-            const fallback = "{_ICON_URL}";
+            try {{
+                const doc = window.parent.document;
+                const github = "{_ICON_URL}";
+                const dataUri = "{data_uri}";
 
-            function upsertLink(rel, sizes) {{
-                let nodes = doc.querySelectorAll('link[rel="' + rel + '"]');
-                let el = nodes.length ? nodes[0] : doc.createElement("link");
-                el.rel = rel;
-                el.href = href;
-                el.type = "image/png";
-                if (sizes) el.setAttribute("sizes", sizes);
-                if (!nodes.length) doc.head.appendChild(el);
+                function setLink(rel, href, sizes) {{
+                    var sel = 'link[rel="' + rel + '"]';
+                    var el = doc.querySelector(sel);
+                    if (!el) {{
+                        el = doc.createElement("link");
+                        el.rel = rel;
+                        doc.head.appendChild(el);
+                    }}
+                    el.href = href;
+                    el.type = "image/png";
+                    if (sizes) el.setAttribute("sizes", sizes);
+                }}
+
+                // 优先 GitHub 公网 PNG（iOS 主屏幕最稳）
+                setLink("apple-touch-icon", github, "180x180");
+                setLink("apple-touch-icon-precomposed", github, "180x180");
+                setLink("icon", github, "180x180");
+
+                // data-URI 备用（部分浏览器标签页）
+                var probe = new Image();
+                probe.onerror = function () {{
+                    setLink("apple-touch-icon", dataUri, "180x180");
+                    setLink("icon", dataUri, "32x32");
+                }};
+                probe.src = github;
+
+                var metaTitle = doc.querySelector('meta[name="apple-mobile-web-app-title"]');
+                if (!metaTitle) {{
+                    metaTitle = doc.createElement("meta");
+                    metaTitle.name = "apple-mobile-web-app-title";
+                    doc.head.appendChild(metaTitle);
+                }}
+                metaTitle.content = "简愈";
+
+                var theme = doc.querySelector('meta[name="theme-color"]');
+                if (!theme) {{
+                    theme = doc.createElement("meta");
+                    theme.name = "theme-color";
+                    doc.head.appendChild(theme);
+                }}
+                theme.content = "#8DA399";
+            }} catch (e) {{
+                console.warn("PWA icon inject failed", e);
             }}
-
-            upsertLink("icon", "32x32");
-            upsertLink("apple-touch-icon", "180x180");
-            upsertLink("apple-touch-icon-precomposed", "180x180");
-
-            let meta = doc.querySelector('meta[name="apple-mobile-web-app-title"]');
-            if (!meta) {{
-                meta = doc.createElement("meta");
-                meta.name = "apple-mobile-web-app-title";
-                doc.head.appendChild(meta);
-            }}
-            meta.content = "简愈一人食";
-
-            let theme = doc.querySelector('meta[name="theme-color"]');
-            if (!theme) {{
-                theme = doc.createElement("meta");
-                theme.name = "theme-color";
-                doc.head.appendChild(theme);
-            }}
-            theme.content = "#8DA399";
-
-            // Fallback: swap to GitHub-hosted PNG if data URI fails on device.
-            const probe = new Image();
-            probe.onerror = function () {{
-                doc.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]')
-                    .forEach(function (node) {{ node.href = fallback; }});
-            }};
-            probe.src = href;
         }})();
         </script>
         """,
