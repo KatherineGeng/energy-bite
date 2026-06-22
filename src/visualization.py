@@ -165,6 +165,17 @@ def _open_photo(source: Any) -> Image.Image:
     return Image.open(source).convert("RGB")
 
 
+def _apply_warm_filter(img: Image.Image) -> Image.Image:
+    """Subtle warm lifestyle filter for meal photos."""
+    from PIL import ImageEnhance
+
+    base = img.convert("RGB")
+    toned = ImageEnhance.Color(base).enhance(1.06)
+    toned = ImageEnhance.Contrast(toned).enhance(1.04)
+    overlay = Image.new("RGB", toned.size, (255, 242, 228))
+    return Image.blend(toned, overlay, 0.10)
+
+
 def _draw_hline(draw: ImageDraw.ImageDraw, y: int) -> None:
     draw.line([(LEFT_MARGIN, y), (POSTER_WIDTH - RIGHT_MARGIN, y)], fill=LINE_COLOR, width=1)
 
@@ -272,14 +283,14 @@ def _draw_module_c(canvas: Image.Image, photos: list[Any]) -> None:
     if len(effective_photos) == 1:
         img_w = CONTENT_W
         img_h = min(zone_h - 20, int(img_w * 0.62))
-        img = _fit_crop(_open_photo(effective_photos[0]), (img_w, img_h))
+        img = _apply_warm_filter(_fit_crop(_open_photo(effective_photos[0]), (img_w, img_h)))
         x = LEFT_MARGIN
         y = zone_top + (zone_h - img_h) // 2
         canvas.paste(img, (x, y))
         return
 
-    left_img = _fit_crop(_open_photo(effective_photos[0]), (420, 560))
-    right_img = _fit_crop(_open_photo(effective_photos[1]), (380, 380))
+    left_img = _apply_warm_filter(_fit_crop(_open_photo(effective_photos[0]), (420, 560)))
+    right_img = _apply_warm_filter(_fit_crop(_open_photo(effective_photos[1]), (380, 380)))
     left_x = LEFT_MARGIN
     right_x = POSTER_WIDTH - RIGHT_MARGIN - 380
     left_y = zone_top + (zone_h - 560) // 2

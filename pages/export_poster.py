@@ -34,19 +34,23 @@ def _inject_export_ui_css() -> None:
             line-height: 1.35;
         }
         .eb-export-panel {
-            margin: 0.65rem 0 0.15rem;
+            margin: 0.55rem 0 0.75rem;
             padding: 0.85rem 0.65rem 0.35rem;
             border-radius: 12px;
             background: rgba(255, 255, 255, 0.55);
             border: 1px solid rgba(141, 163, 153, 0.18);
         }
-        div[data-testid="stHorizontalBlock"] button {
-            min-height: 2.85rem !important;
+        .eb-export-top-actions button,
+        .eb-export-trail-action button {
+            min-height: 2.95rem !important;
             font-weight: 600 !important;
-            font-size: 0.82rem !important;
+            font-size: 0.86rem !important;
         }
         .eb-poster-hero {
-            margin: 0 0 0.75rem;
+            margin: 0.25rem 0 0.85rem;
+        }
+        .eb-export-trail-wrap {
+            margin-top: 0.35rem;
         }
         </style>
         """,
@@ -106,7 +110,7 @@ def _render_default_poster() -> None:
     if st.session_state.get("poster_bytes"):
         st.image(st.session_state.poster_bytes, caption="最新生活志海报", use_container_width=True)
     elif _SAMPLE_POSTER.is_file():
-        st.image(str(_SAMPLE_POSTER), caption="样本海报 · 生成后将在此展示", use_container_width=True)
+        st.image(str(_SAMPLE_POSTER), caption="样本海报 · 生成后将替换为实拍版", use_container_width=True)
     else:
         st.caption("生成海报后将在此预览")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -261,12 +265,13 @@ def _render_trail_panel() -> None:
                     st.rerun()
 
 
-def _render_action_zone() -> None:
+def _render_top_actions() -> None:
     if "export_action_panel" not in st.session_state:
         st.session_state.export_action_panel = None
 
     panel = st.session_state.export_action_panel
-    col_a, col_b, col_c = st.columns(3, gap="small")
+    st.markdown('<div class="eb-export-top-actions">', unsafe_allow_html=True)
+    col_a, col_b = st.columns(2, gap="small")
     with col_a:
         if st.button(
             "🖼️ 制作菜单海报",
@@ -285,15 +290,7 @@ def _render_action_zone() -> None:
         ):
             st.session_state.export_action_panel = None if panel == "import" else "import"
             st.rerun()
-    with col_c:
-        if st.button(
-            "📤 海报分享轨迹",
-            key="export_btn_trail",
-            use_container_width=True,
-            type="primary" if panel == "trail" else "secondary",
-        ):
-            st.session_state.export_action_panel = None if panel == "trail" else "trail"
-            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if panel == "poster":
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
@@ -303,10 +300,25 @@ def _render_action_zone() -> None:
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
         _render_import_panel()
         st.markdown("</div>", unsafe_allow_html=True)
-    elif panel == "trail":
+
+
+def _render_trail_action() -> None:
+    panel = st.session_state.get("export_action_panel")
+    st.markdown('<div class="eb-export-trail-wrap eb-export-trail-action">', unsafe_allow_html=True)
+    if st.button(
+        "📤 海报分享轨迹",
+        key="export_btn_trail",
+        use_container_width=True,
+        type="primary" if panel == "trail" else "secondary",
+    ):
+        st.session_state.export_action_panel = None if panel == "trail" else "trail"
+        st.rerun()
+
+    if panel == "trail":
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
         _render_trail_panel()
         st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render() -> None:
@@ -323,5 +335,6 @@ def render() -> None:
     if "poster_history" not in st.session_state:
         st.session_state.poster_history = []
 
+    _render_top_actions()
     _render_default_poster()
-    _render_action_zone()
+    _render_trail_action()

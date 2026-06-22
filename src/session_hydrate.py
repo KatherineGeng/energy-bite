@@ -7,8 +7,8 @@ from datetime import date
 import streamlit as st
 
 from src.client_profile import plan_user_key
-from src.database import load_daily_meal_plan, load_morning_context
-from src.meal_plan_utils import empty_meal_plan
+from src.database import load_daily_meal_plan, load_morning_context, save_daily_meal_plan
+from src.meal_plan_utils import empty_meal_plan, flatten_plan
 from src.plan_bootstrap import plan_from_query_token
 from src.query_nav import clear_query_key, qp_first
 
@@ -45,6 +45,39 @@ def _apply_saved_plan(saved: dict) -> None:
         st.session_state.final_daily_list = []
 
 
+def ensure_today_plan_persisted() -> None:
+    """Write session menu to CSV when disk is missing (heals reboot / legacy rows)."""
+    from src.client_profile import plan_user_key
+
+    if not plan_user_key():
+        return
+
+    today = st.session_state.get("today_date", date.today().isoformat())
+    if load_daily_meal_plan(today):
+        return
+
+    locked = bool(st.session_state.get("menu_locked"))
+    plan = st.session_state.get("final_meal_plan") if locked else st.session_state.get("meal_plan")
+    if not plan or not isinstance(plan, dict):
+        return
+    menu_ids = flatten_plan(plan)
+    if not menu_ids:
+        return
+
+    save_daily_meal_plan(today, plan, confirmed=locked)
+    from src.database import record_menu_archive
+
+    record_menu_archive(today, menu_ids)
+    from src.plan_bootstrap import persist_plan_to_browser
+
+    persist_plan_to_browser(
+        today,
+        plan,
+        confirmed=locked,
+        snapshots=st.session_state.get("eb_plan_snapshots", {}),
+    )
+
+
 def hydrate_today_state() -> None:
     today = date.today().isoformat()
     user_key = plan_user_key()
@@ -59,6 +92,7 @@ def hydrate_today_state() -> None:
         and st.session_state.get("meal_plan")
         and any(st.session_state.meal_plan.get(m) for m in ("早餐", "午餐", "晚餐"))
     ):
+        ensure_today_plan_persisted()
         return
 
     saved_plan = load_daily_meal_plan(today)
@@ -94,6 +128,7 @@ def hydrate_today_state() -> None:
 
     st.session_state._hydrated_date = today
     st.session_state._hydrated_user = user_key
+    ensure_today_plan_persisted()
 
 
 def get_confirmed_plan(day: str | None = None) -> dict | None:

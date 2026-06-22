@@ -281,6 +281,10 @@ def _confirm_today_plan() -> None:
     st.session_state.menu_locked = True
     st.session_state.eb_add_ui = None
     _persist_plan(plan, confirmed=True)
+    from src.database import record_menu_archive
+
+    today = st.session_state.get("today_date", date.today().isoformat())
+    record_menu_archive(today, st.session_state.final_daily_list)
 
 
 def _on_favorite_menu() -> None:
