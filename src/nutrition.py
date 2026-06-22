@@ -44,6 +44,21 @@ def nutrition_coverage_for_menu(menu_row: dict) -> dict[str, float]:
     return {cat: (1.0 if cat in covered else 0.0) for cat in NUTRITION_CATEGORIES}
 
 
+def nutrition_coverage_for_meal_slot(menu_rows: list[dict]) -> dict[str, float]:
+    """Union coverage across all dishes in one meal slot."""
+    covered: set[str] = set()
+    for menu_row in menu_rows:
+        cov = nutrition_coverage_for_menu(menu_row)
+        covered.update(cat for cat, val in cov.items() if val > 0)
+    return {cat: (1.0 if cat in covered else 0.0) for cat in NUTRITION_CATEGORIES}
+
+
+def meal_slot_coverage_summary(menu_rows: list[dict]) -> str:
+    cov = nutrition_coverage_for_meal_slot(menu_rows)
+    hit = sum(1 for val in cov.values() if val > 0)
+    return f"{hit}/{len(NUTRITION_CATEGORIES)} 类"
+
+
 def coverage_summary(menu_row: dict) -> str:
     coverage = nutrition_coverage_for_menu(menu_row)
     hit = [cat for cat, val in coverage.items() if val > 0]

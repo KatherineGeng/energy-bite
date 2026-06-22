@@ -29,7 +29,7 @@ from src.meal_plan_utils import (
 )
 from src.session_hydrate import hydrate_today_state
 from src.llm_client import has_api_key
-from src.coverage_widget import render_coverage_badge, render_meal_headline
+from src.coverage_widget import render_daily_coverage_table, render_meal_headline
 from src.nutrition import coverage_summary, menu_row_from_analysis
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
 from src.mobile_ui import (
@@ -60,6 +60,10 @@ def _render_link_row(links: list[tuple[str, str, str]]) -> None:
         cls = "eb-meal-action-btn" + (f" {extra}" if extra else "")
         parts.append(f'<a class="{cls}" href="{href}">{label}</a>')
     st.markdown(f'<div class="eb-meal-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
+
+
+def _flash_success(msg: str) -> None:
+    st.session_state.eb_flash_success = msg
 
 
 def _flash(msg: str) -> None:
@@ -236,6 +240,27 @@ def _try_confirm_new_dish(meal_type: str) -> None:
     st.session_state.pop(analysis_key, None)
     _add_to_slot(meal_type, menu_id)
     _close_add_panel()
+    _flash_success("添加成功")
+
+
+def _toggle_coverage_table() -> None:
+    st.session_state.eb_show_coverage = not st.session_state.get("eb_show_coverage", False)
+
+
+def _confirm_today_plan() -> None:
+    plan = _ensure_meal_plan()
+    st.session_state.final_meal_plan = {k: list(v) for k, v in plan.items()}
+    st.session_state.final_daily_list = _flatten_plan(plan)
+    st.session_state.menu_locked = True
+    st.session_state.eb_add_ui = None
+    _persist_plan(plan, confirmed=True)
+
+
+def _on_favorite_menu() -> None:
+    if _save_favorite_menu():
+        st.session_state.menu_fav_flash = True
+    else:
+        st.session_state.eb_flash = "当前没有可收藏的菜单。"
 
 
 def _today_gen_count() -> int:
@@ -332,7 +357,7 @@ def _run_shuffle(sleep: str, load: str, meal_count: int) -> None:
 def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
     """New menu: name + ingredients text + prep time; nutrition via API analysis."""
     st.markdown(f"**新菜品 · {dish_name}**")
-    st.caption("必填：食材、准备时间。填写后请点击「分析营养覆盖」，由 AI 判断七大营养类。")
+    st.caption("必填：食材、准备时间。填写后请点击底部「分析营养覆盖」。")
 
     ing_key = f"new_ing_{meal_type}"
     prep_key = f"new_prep_{meal_type}"
@@ -354,6 +379,16 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
     )
 
     ing_text = ingredients_text.strip()
+    analysis = st.session_state.get(analysis_key)
+    if analysis and ing_text:
+        draft = menu_row_from_analysis(ing_text, analysis, dish_name, int(prep))
+        st.caption(f"预计营养覆盖：{coverage_summary(draft)}")
+        note = analysis.get("note", "")
+        if note:
+            st.caption(note)
+        if analysis.get("unmatched"):
+            st.caption("未入库食材：" + "、".join(analysis["unmatched"]))
+
     if st.button(
         "分析营养覆盖",
         type="secondary",
@@ -364,22 +399,11 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
         with st.spinner("正在分析营养覆盖…"):
             st.session_state[analysis_key] = analyze_ingredients(ing_text)
 
-    analysis = st.session_state.get(analysis_key)
-    if analysis and ing_text:
-        draft = menu_row_from_analysis(ing_text, analysis, dish_name, int(prep))
-        st.caption("预计营养覆盖")
-        render_coverage_badge(draft, key=f"preview_cov_{meal_type}")
-        note = analysis.get("note", "")
-        if note:
-            st.caption(note)
-        if analysis.get("unmatched"):
-            st.caption("未入库食材：" + "、".join(analysis["unmatched"]))
-
     _render_panel_buttons(
         meal_type,
         primary=("确认入库并加入本餐", _try_confirm_new_dish),
         secondary=("返回搜索", _on_back_manual_search),
-        show_cancel=True,
+        show_cancel=False,
     )
 
 
@@ -682,6 +706,41 @@ def _on_unlock_plan() -> None:
     _persist_plan(plan, confirmed=False)
 
 
+def _render_bottom_action_row(*, locked: bool) -> None:
+    """Three horizontal actions: coverage table, confirm/edit, favorite."""
+    col_cov, col_confirm, col_fav = st.columns(3)
+    with col_cov:
+        st.button(
+            "营养覆盖",
+            use_container_width=True,
+            key="btn_cov_table",
+            on_click=_toggle_coverage_table,
+        )
+    with col_confirm:
+        if locked:
+            st.button(
+                "重新编辑",
+                use_container_width=True,
+                key="btn_unlock_plan",
+                on_click=_on_unlock_plan,
+            )
+        else:
+            st.button(
+                "确认今日菜单",
+                type="primary",
+                use_container_width=True,
+                key="confirm_plan",
+                on_click=_confirm_today_plan,
+            )
+    with col_fav:
+        st.button(
+            "收藏菜单",
+            use_container_width=True,
+            key="btn_fav_menu",
+            on_click=_on_favorite_menu,
+        )
+
+
 def _save_favorite_menu() -> bool:
     plan = _ensure_meal_plan()
     menu_ids = _flatten_plan(plan)
@@ -703,6 +762,9 @@ def render() -> None:
 
     if msg := st.session_state.pop("eb_flash", None):
         st.warning(msg)
+
+    if msg := st.session_state.pop("eb_flash_success", None):
+        st.success(msg)
 
     locked = st.session_state.get("menu_locked", False)
 
@@ -767,10 +829,7 @@ def render() -> None:
     if not locked:
         render_primary_action_link("shuffle", "🔀", "换套菜单")
     elif locked:
-        st.caption("如需修改菜品，请先重新编辑。")
-        if st.button("重新编辑菜单", use_container_width=True, key="btn_unlock_plan"):
-            _on_unlock_plan()
-            st.rerun()
+        st.caption("如需修改菜品，请点底部「重新编辑」。")
 
     section_title("fa-clipboard-list", "今日菜单")
 
@@ -783,34 +842,7 @@ def render() -> None:
         display_plan = plan
     _render_meal_sections(display_plan, meal_slots, locked)
 
-    if not locked:
-        action_col1, action_col2 = st.columns(2)
-        with action_col1:
-            if st.button(
-                "确认今日就餐计划",
-                type="primary",
-                use_container_width=True,
-                key="confirm_plan",
-            ):
-                st.session_state.final_meal_plan = {k: list(v) for k, v in plan.items()}
-                st.session_state.final_daily_list = _flatten_plan(plan)
-                st.session_state.menu_locked = True
-                st.session_state.eb_add_ui = None
-                _persist_plan(plan, confirmed=True)
-                st.rerun()
-        with action_col2:
-            if st.button("❤️ 收藏此菜单", use_container_width=True, key="btn_fav_menu"):
-                if _save_favorite_menu():
-                    st.toast("已收藏此套菜单", icon="❤️")
-                    st.session_state.menu_fav_flash = True
-                    st.rerun()
-                else:
-                    st.warning("当前没有可收藏的菜单。")
-    else:
-        if st.button("❤️ 收藏此菜单", use_container_width=True, key="btn_fav_menu_locked"):
-            if _save_favorite_menu():
-                st.toast("已收藏此套菜单", icon="❤️")
-                st.session_state.menu_fav_flash = True
-                st.rerun()
-            else:
-                st.warning("当前没有可收藏的菜单。")
+    if st.session_state.get("eb_show_coverage"):
+        render_daily_coverage_table(display_plan, meal_slots, get_menu_by_id)
+
+    _render_bottom_action_row(locked=locked)
