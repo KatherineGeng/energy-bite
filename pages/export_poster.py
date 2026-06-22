@@ -21,7 +21,7 @@ from src.export import generate_poster
 from src.meal_plan_dates import markers_with_today
 from src.session_hydrate import hydrate_today_state, menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text, encode_share_code
-from src.theme import LIFESTYLE_PLACEHOLDER_URL, page_title
+from src.theme import page_title
 
 
 
@@ -179,25 +179,7 @@ def _render_poster_tab() -> None:
 
     if not uploaded:
 
-        st.markdown(
-
-            f"""
-
-            <p style="font-size:0.85rem;color:#64748B;margin-bottom:0.35rem;">
-
-            <i class="fa-solid fa-camera"></i> 未上传时将使用系统默认生活方式图
-
-            </p>
-
-            <img src="{LIFESTYLE_PLACEHOLDER_URL}" style="width:100%;max-width:420px;border-radius:12px;
-
-            border:1px solid rgba(141,163,153,0.3);" alt="默认生活方式占位图"/>
-
-            """,
-
-            unsafe_allow_html=True,
-
-        )
+        st.caption("未上传时将使用系统默认生活方式图")
 
     if uploaded and len(uploaded) > 2:
 
@@ -247,7 +229,7 @@ def _render_poster_tab() -> None:
 
     if st.session_state.get("poster_bytes"):
 
-        st.image(st.session_state.poster_bytes, caption="全日生活志海报预览", width=720)
+        st.image(st.session_state.poster_bytes, caption="全日生活志海报预览", use_container_width=True)
 
         dl_col, code_col = st.columns(2)
 

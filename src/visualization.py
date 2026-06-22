@@ -33,6 +33,11 @@ LIFESTYLE_PLACEHOLDER_URL = (
 )
 
 FONT_CANDIDATES = [
+    # Linux (Streamlit Cloud — installed via packages.txt)
+    "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc",
+    # macOS
     "/System/Library/Fonts/Supplemental/Songti.ttc",
     "/System/Library/Fonts/STHeiti Light.ttc",
     "/System/Library/Fonts/PingFang.ttc",
@@ -165,13 +170,13 @@ def _draw_hline(draw: ImageDraw.ImageDraw, y: int) -> None:
 
 
 def _draw_module_a(draw: ImageDraw.ImageDraw, date_str: str, theme: str) -> None:
-    date_font = _load_font(34)
-    brand_font = _load_font(22)
-    theme_font = _load_font(26)
+    date_font = _load_font(38)
+    brand_font = _load_font(24)
+    theme_font = _load_font(28)
 
     y_top = _y(0.05)
     draw.text((LEFT_MARGIN, y_top), _format_date(date_str), fill=TEXT_DARK, font=date_font)
-    draw.text((LEFT_MARGIN, y_top + 44), "THE MINIMALIST HEALING 日志", fill=TEXT_MID, font=brand_font)
+    draw.text((LEFT_MARGIN, y_top + 44), "THE ENERGY BITE", fill=TEXT_MID, font=brand_font)
 
     theme_lines = _wrap_by_width(draw, theme, theme_font, max_width=360)
     theme_y = y_top + 4
@@ -184,9 +189,9 @@ def _draw_module_a(draw: ImageDraw.ImageDraw, date_str: str, theme: str) -> None
 
 
 def _draw_module_b(draw: ImageDraw.ImageDraw, meals: list[dict], ingredient_map: dict) -> None:
-    label_font = _load_font(28)
-    name_font = _load_font(32)
-    detail_font = _load_font(24)
+    label_font = _load_font(30)
+    name_font = _load_font(36)
+    detail_font = _load_font(26)
 
     slots = [
         ("晨", "早餐"),
@@ -195,35 +200,33 @@ def _draw_module_b(draw: ImageDraw.ImageDraw, meals: list[dict], ingredient_map:
     ]
     meal_by_type = {m.get("meal_type"): m for m in meals}
     y = _y(0.15)
-    title_max_w = POSTER_WIDTH - TITLE_X - RIGHT_MARGIN
     detail_max_w = POSTER_WIDTH - DETAIL_X - RIGHT_MARGIN
 
     for label, meal_type in slots:
         meal = meal_by_type.get(meal_type)
         name = meal.get("menu_name", "—") if meal else "—"
-        name_lines = _wrap_by_width(draw, name, name_font, title_max_w)
+        prefix = f"{label}："
+        prefix_w, _ = _text_size(draw, prefix, label_font)
+        name_lines = _wrap_by_width(draw, name, name_font, POSTER_WIDTH - LEFT_MARGIN - prefix_w - RIGHT_MARGIN)
 
-        if name_lines:
-            _, title_h = _text_size(draw, name_lines[0], name_font)
-            _, label_h = _text_size(draw, label, label_font)
-            label_y = y + max(0, (title_h - label_h) // 2)
-            draw.text((LEFT_MARGIN, label_y), label, fill=TEXT_MID, font=label_font)
-
-        for line in name_lines:
-            draw.text((TITLE_X, y), line, fill=TEXT_DARK, font=name_font)
+        for i, line in enumerate(name_lines):
+            if i == 0:
+                draw.text((LEFT_MARGIN, y), prefix, fill=TEXT_MID, font=label_font)
+                draw.text((LEFT_MARGIN + prefix_w, y), line, fill=TEXT_DARK, font=name_font)
+            else:
+                draw.text((LEFT_MARGIN + prefix_w, y), line, fill=TEXT_DARK, font=name_font)
             _, lh = _text_size(draw, line, name_font)
-            y += lh + 4
+            y += lh + 6
 
-        y += 6
         if meal:
             detail = _ingredient_line(meal, ingredient_map)
             if detail:
                 for line in _wrap_by_width(draw, detail, detail_font, detail_max_w):
                     draw.text((DETAIL_X, y), line, fill=TEXT_LIGHT, font=detail_font)
                     _, lh = _text_size(draw, line, detail_font)
-                    y += lh + 4
+                    y += lh + 5
 
-        y += int(POSTER_HEIGHT * 0.028)
+        y += int(POSTER_HEIGHT * 0.03)
 
     _draw_hline(draw, _y(0.42))
 
@@ -267,9 +270,11 @@ def _draw_module_c(canvas: Image.Image, photos: list[Any]) -> None:
         return
 
     if len(effective_photos) == 1:
-        img = _fit_crop(_open_photo(effective_photos[0]), (720, 540))
-        x = POSTER_WIDTH - RIGHT_MARGIN - 720
-        y = zone_top + (zone_h - 540) // 2
+        img_w = CONTENT_W
+        img_h = min(zone_h - 20, int(img_w * 0.62))
+        img = _fit_crop(_open_photo(effective_photos[0]), (img_w, img_h))
+        x = LEFT_MARGIN
+        y = zone_top + (zone_h - img_h) // 2
         canvas.paste(img, (x, y))
         return
 
@@ -289,8 +294,8 @@ def _pill_width(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
 
 
 def _draw_module_d(draw: ImageDraw.ImageDraw, tags: list[str]) -> None:
-    pill_font = _load_font(24)
-    footer_font = _load_font(22)
+    pill_font = _load_font(26)
+    footer_font = _load_font(24)
 
     display_tags = [f"#{t.replace(' ', '')}" for t in tags[:5]]
     if not display_tags:

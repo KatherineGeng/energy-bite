@@ -625,27 +625,24 @@ def render() -> None:
 
     plan = _ensure_meal_plan()
     menu_ids = _flatten_plan(plan)
-    has_context = _has_morning_context(today_iso)
     planning_phase = len(menu_ids) == 0
 
-    sleep = st.session_state.get("morning_sleep", "良好")
-    load = st.session_state.get("morning_load", "中等")
+    sleep = morning.get("sleep", st.session_state.get("morning_sleep", "良好"))
+    load = morning.get("load", st.session_state.get("morning_load", "中等"))
 
-    if legacy_act == "gen" and planning_phase and not locked and has_context:
+    if legacy_act == "gen" and planning_phase and not locked:
         with st.spinner("正在生成菜单…"):
             _run_generate(sleep, load, int(meal_count))
         st.rerun()
 
-    if legacy_act == "shuffle" and not planning_phase and not locked and has_context:
+    if legacy_act == "shuffle" and not planning_phase and not locked:
         with st.spinner("正在换套菜单…"):
             _run_shuffle(sleep, load, int(meal_count))
         st.rerun()
 
     if planning_phase:
-        if not has_context:
-            st.info("请先在「回顾」页填写并保存晨间三问，再回来生成菜单。")
-        else:
-            st.info("开始规划餐食，今天想吃什么？")
+        st.info("开始规划餐食，今天想吃什么？")
+        st.caption("可选：在「回顾」填写晨间三问，推荐会更贴合你的状态。")
 
         left = _library_gens_remaining()
         if left > 0:
@@ -653,7 +650,7 @@ def render() -> None:
         elif has_api_key():
             st.caption("下一次生成将由 AI 创作全新菜品。")
 
-        render_primary_action_link("gen", "🍴", "生成菜单", disabled=not has_context)
+        render_primary_action_link("gen", "🍴", "生成菜单")
         return
 
     note = st.session_state.pop("last_gen_note", None)
@@ -670,7 +667,7 @@ def render() -> None:
         st.caption("下一次换套将由 AI 创作全新菜品。")
 
     if not locked:
-        render_primary_action_link("shuffle", "🔀", "换套菜单", disabled=not has_context)
+        render_primary_action_link("shuffle", "🔀", "换套菜单")
     elif locked:
         st.caption("如需修改菜品，请先重新编辑。")
         if st.button("重新编辑菜单", use_container_width=True, key="btn_unlock_plan"):

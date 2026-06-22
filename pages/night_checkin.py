@@ -70,6 +70,7 @@ def _inject_review_card_css() -> None:
 
 def _render_morning_section(today_iso: str) -> None:
     section_title("fa-sun", "晨间三问")
+    st.caption("可选 · 填写后菜单推荐更贴合你的状态")
 
     sleep = st.radio(
         "一、昨晚睡眠状态",
