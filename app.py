@@ -18,7 +18,7 @@ from src.theme import inject_theme_assets
 
 st.set_page_config(
     page_title=f"简愈一人食 {APP_VERSION}",
-    page_icon="static/apple-touch-icon.png",
+    page_icon="🌿",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
@@ -73,8 +73,6 @@ if "export_tab_key" not in st.session_state:
 VALID_PAGES = {"morning", "night", "export"}
 apply_query_nav(VALID_PAGES)
 
-render_bottom_nav()
-
 render_top_header(date.fromisoformat(st.session_state.today_date))
 
 _page = st.session_state.current_page
@@ -90,3 +88,5 @@ else:
     from pages import export_poster
 
     export_poster.render()
+
+render_bottom_nav()

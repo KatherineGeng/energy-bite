@@ -18,21 +18,12 @@ NAV_ITEMS = [
 
 
 def inject_mobile_css() -> None:
+    """Safari-safe CSS — no backdrop-filter, no global Streamlit layout overrides."""
     st.markdown(
         f"""
         <style>
-        *, *::before, *::after {{ box-sizing: border-box !important; }}
-        html, body, .stApp,
-        [data-testid="stAppViewContainer"],
-        [data-testid="stMain"],
-        section.main {{
-            width: 100% !important;
-            max-width: 100% !important;
-        }}
-        .block-container, [data-testid="stMainBlockContainer"] {{
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow-x: clip !important;
+        .block-container {{
+            padding: 0.25rem max(0.65rem, env(safe-area-inset-left)) calc(3.6rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
         }}
         [data-testid="stToolbar"],
         [data-testid="stToolbarActions"],
@@ -41,14 +32,11 @@ def inject_mobile_css() -> None:
         .stAppDeployButton, #MainMenu,
         .viewerBadge_container, div[class*="viewerBadge"],
         button[kind="header"], [data-testid="baseButton-header"],
-        [data-testid="stSidebar"], header[data-testid="stHeader"], footer {{
+        [data-testid="stSidebar"], footer {{
             display: none !important;
         }}
-        .block-container {{
-            padding: 0.25rem max(0.65rem, env(safe-area-inset-left)) calc(3.6rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
-        }}
         p, span, label, .stMarkdown {{
-            overflow-wrap: anywhere !important;
+            overflow-wrap: break-word !important;
             word-break: break-word !important;
         }}
         .eb-action-row {{
@@ -59,122 +47,30 @@ def inject_mobile_css() -> None:
             justify-content: space-between !important;
             gap: 0.35rem !important;
             width: 100% !important;
-            max-width: 100% !important;
+            margin: 0.35rem 0 0.5rem !important;
         }}
-        /* 微博式固定底栏 — 纯 HTML，不用 :has()（移动端安全） */
+        .eb-action-row .eb-action-btn {{ max-width: 50% !important; }}
+        .eb-action-row .eb-action-btn:only-child {{ max-width: 100% !important; flex: 1 1 100% !important; }}
+        /* 固定底栏 — 纯色背景，Safari 不用 backdrop-filter */
         .eb-bottom-nav {{
             position: fixed !important;
             left: 0 !important;
             right: 0 !important;
             bottom: 0 !important;
-            z-index: 999999 !important;
+            z-index: 999 !important;
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: stretch !important;
             justify-content: space-around !important;
             width: 100% !important;
-            max-width: 100vw !important;
             height: calc(3.15rem + env(safe-area-inset-bottom)) !important;
             padding: 0 0 env(safe-area-inset-bottom) 0 !important;
             margin: 0 !important;
-            background: rgba(255, 255, 255, 0.97) !important;
-            border-top: 1px solid rgba(30, 41, 59, 0.08) !important;
-            box-shadow: 0 -2px 14px rgba(30, 41, 59, 0.07) !important;
-            -webkit-backdrop-filter: blur(8px);
-            backdrop-filter: blur(8px);
-            transform: translateZ(0);
+            background: #ffffff !important;
+            border-top: 1px solid rgba(30, 41, 59, 0.1) !important;
+            box-shadow: 0 -1px 8px rgba(30, 41, 59, 0.06) !important;
         }}
-        [data-testid="stHorizontalBlock"] {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 0.35rem !important;
-            width: 100% !important;
-        }}
-        [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
-            flex: 1 1 0 !important;
-            width: auto !important;
-            min-width: 0 !important;
-        }}
-        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] .stButton > button {{
-            font-size: 0.68rem !important;
-            padding: 0.38rem 0.15rem !important;
-            white-space: nowrap !important;
-        }}
-        .eb-meal-headline {{
-            font-size: 0.82rem;
-            line-height: 1.45;
-            margin: 0 0 0.2rem;
-            color: {TEXT};
-        }}
-        .eb-meal-label {{
-            font-family: inherit;
-            font-weight: 600;
-        }}
-        .eb-meal-meta {{
-            color: #64748B;
-            font-size: 0.76rem;
-        }}
-        .eb-add-panel {{
-            background: rgba(141, 163, 153, 0.08);
-            border: 1px solid rgba(141, 163, 153, 0.25);
-            border-radius: 10px;
-            padding: 0.55rem 0.65rem;
-            margin: 0.35rem 0 0.5rem;
-        }}
-        .eb-cov-wrap {{
-            position: relative;
-            display: inline;
-            white-space: normal;
-        }}
-        .eb-cov-i {{
-            display: inline-block;
-            position: relative;
-            margin-left: 0.12rem;
-            width: 0.9rem;
-            height: 0.9rem;
-            line-height: 0.85rem;
-            text-align: center;
-            font-size: 0.58rem;
-            font-weight: 700;
-            font-style: italic;
-            color: {ACCENT};
-            border: 1px solid rgba(141, 163, 153, 0.55);
-            border-radius: 50%;
-            cursor: help;
-            vertical-align: super;
-            text-decoration: none;
-        }}
-        .eb-cov-wrap .eb-cov-tip {{
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }}
-        .eb-cov-wrap:hover .eb-cov-tip,
-        .eb-cov-wrap:focus-within .eb-cov-tip {{
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }}
-        .eb-cov-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 0.35rem 0;
-            font-size: 0.7rem;
-        }}
-        .eb-cov-table th, .eb-cov-table td {{
-            border-bottom: 1px solid rgba(141, 163, 153, 0.2);
-            padding: 0.2rem 0.15rem;
-        }}
-        .eb-cov-mark {{ text-align: center; color: {ACCENT}; }}
-        .eb-cov-foot {{ display: block; color: #64748B; font-size: 0.66rem; margin-top: 0.15rem; }}
-        .eb-cov-hint {{ display: block; color: #94A3B8; font-size: 0.6rem; margin-top: 0.2rem; }}
-        .eb-action-row {{ margin: 0.35rem 0 0.5rem !important; }}
-        .eb-action-row .eb-action-btn {{ max-width: 50% !important; }}
-        .eb-action-row .eb-action-btn:only-child {{ max-width: 100% !important; flex: 1 1 100% !important; }}
         .eb-bottom-nav .eb-nav-link {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
@@ -185,8 +81,6 @@ def inject_mobile_css() -> None:
             justify-content: center !important;
             gap: 0.12rem !important;
             text-decoration: none !important;
-            border: none !important;
-            border-radius: 0 !important;
             padding: 0.28rem 0 !important;
             font-size: 0.62rem !important;
             line-height: 1.1 !important;
@@ -194,9 +88,17 @@ def inject_mobile_css() -> None:
             background: transparent !important;
             -webkit-tap-highlight-color: transparent;
         }}
+        .eb-nav-link.active {{
+            color: {ACCENT} !important;
+            font-weight: 600 !important;
+        }}
+        .eb-nav-icon {{
+            font-size: 1.2rem !important;
+            line-height: 1 !important;
+        }}
         .eb-gen-btn {{
+            display: flex !important;
             width: 100% !important;
-            max-width: 100% !important;
             margin: 0.35rem 0 0.5rem !important;
             box-sizing: border-box !important;
         }}
@@ -224,30 +126,23 @@ def inject_mobile_css() -> None:
             border-color: {ACCENT} !important;
             font-weight: 600 !important;
         }}
-        .eb-action-btn.disabled, .eb-action-btn.disabled:hover {{
+        .eb-action-btn.disabled {{
             opacity: 0.45 !important;
             pointer-events: none !important;
         }}
-        .eb-action-icon {{
-            display: inline-block !important;
-            font-size: 0.85rem !important;
-            line-height: 1 !important;
-            margin: 0 !important;
-            flex-shrink: 0 !important;
+        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 0.35rem !important;
         }}
-        .eb-nav-icon {{
-            display: block !important;
-            font-size: 1.2rem !important;
-            line-height: 1 !important;
-            margin: 0 !important;
+        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
         }}
-        .eb-nav-link.active {{
-            color: {ACCENT} !important;
-            font-weight: 600 !important;
-            background: transparent !important;
-        }}
-        .eb-nav-link.active .eb-nav-icon {{
-            transform: scale(1.05);
+        div[data-testid="stVerticalBlockBorderWrapper"] .stButton > button {{
+            font-size: 0.68rem !important;
+            padding: 0.38rem 0.15rem !important;
         }}
         .eb-title-version {{
             font-size: 0.72rem;
@@ -266,16 +161,6 @@ def inject_mobile_css() -> None:
         div[data-testid="stRadio"] label {{
             font-size: 0.82rem !important;
             padding: 0.2rem 0.45rem !important;
-        }}
-        .eb-meal-section {{
-            margin-bottom: 0.65rem;
-        }}
-        .eb-meal-section-title {{
-            font-family: inherit;
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: {TEXT};
-            margin: 0 0 0.35rem;
         }}
         </style>
         """,
@@ -333,7 +218,7 @@ def render_primary_action_link(
 
 
 def render_bottom_nav(current_page: str | None = None) -> None:
-    """Fixed tab bar pinned to viewport bottom (Weibo-style HTML)."""
+    """Fixed tab bar at viewport bottom (HTML links, Safari-safe)."""
     page = current_page or st.session_state.get("current_page", "morning")
     parts: list[str] = []
     for page_id, icon, label in NAV_ITEMS:
