@@ -1,4 +1,4 @@
-"""Sharing & collection — 简愈一人食 4.8."""
+"""Sharing & collection — 简愈一人食 分享页（双层架构）."""
 
 from __future__ import annotations
 
@@ -22,24 +22,52 @@ from src.database import (
     search_archive_menu_ids,
 )
 from src.export import generate_poster
-from src.image_library import render_gallery_picker, save_uploads_to_library
+from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
 from src.menu_calendar_ui import render_menu_calendar
-from src.nav_params import append_nav_params
 from src.query_nav import qp_first
 from src.session_hydrate import hydrate_today_state, menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text, encode_share_code
-
-TAB_OPTIONS: list[tuple[str, str]] = [
-    ("poster", "📸 生活志海报"),
-    ("past", "📅 按日期菜单"),
-    ("history", "📤 历史分享"),
-    ("favorites", "❤️ 收藏菜单"),
-    ("import", "📥 导入菜单"),
-]
-
-TAB_LABEL_MAP = dict(TAB_OPTIONS)
+from src.theme import TEXT
 
 _CAL_EXTRA = {"nav": "export"}
+
+
+def _inject_export_ui_css() -> None:
+    st.markdown(
+        f"""
+        <style>
+        .eb-poster-default-hint {{
+            font-size: 0.85rem !important;
+            color: #64748B;
+            text-align: center;
+            white-space: nowrap;
+            margin: 0 0 0.45rem;
+            line-height: 1.35;
+        }}
+        .eb-export-spacer {{
+            height: 0.85rem;
+        }}
+        .eb-export-panel {{
+            margin: 0.65rem 0 0.15rem;
+            padding: 0.85rem 0.65rem 0.35rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.55);
+            border: 1px solid rgba(141, 163, 153, 0.18);
+        }}
+        div[data-testid="stHorizontalBlock"]:has(button[kind="primaryKey"]) button,
+        div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) button {{
+            min-height: 3.05rem !important;
+            font-weight: 600 !important;
+            font-size: 0.92rem !important;
+        }}
+        .eb-fav-item {{
+            margin: 0 0 0.85rem;
+            padding-bottom: 0.15rem;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _today_menu_ids() -> list[str]:
@@ -71,24 +99,7 @@ def _render_menu_summary(date_str: str, menu_ids: list[str]) -> None:
         st.caption(str(row.get("energy_tags", "")).replace("·", " · "))
 
 
-
-def _render_poster_tab() -> None:
-    st.markdown(
-        """
-        <style>
-        .eb-poster-default-hint {
-            font-size: 0.85rem !important;
-            color: #64748B;
-            text-align: center;
-            white-space: nowrap;
-            margin: 0 0 0.45rem;
-            line-height: 1.35;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
+def _render_poster_panel() -> None:
     today = date.today()
     today_iso = today.isoformat()
     default_ids = _today_menu_ids()
@@ -99,21 +110,13 @@ def _render_poster_tab() -> None:
             unsafe_allow_html=True,
         )
     else:
-        st.info("请先在「菜单」页确认今日就餐计划，或选择下方日期查看过往菜单。")
+        st.info("请先在「菜单」页确认今日就餐计划，或在下方「日历回顾」选择日期。")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        selected_date = st.date_input(
-            "海报日期",
-            value=today,
-            key="export_poster_date",
-        )
-    with col2:
-        st.link_button(
-            "过往菜单海报",
-            url=append_nav_params("?nav=export&export_tab=past"),
-            use_container_width=True,
-        )
+    selected_date = st.date_input(
+        "海报日期",
+        value=today,
+        key="export_poster_date",
+    )
 
     date_str = selected_date.isoformat()
     if date_str == today_iso and default_ids:
@@ -198,6 +201,69 @@ def _render_poster_tab() -> None:
             )
 
 
+def _render_import_panel() -> None:
+    st.caption("粘贴朋友分享的简愈口令，一键存入私人菜单库。")
+
+    pasted = st.text_area(
+        "粘贴分享口令",
+        placeholder="￥MENU:ING_001|ING_002:快速供能·肠脑舒缓:0.85￥",
+        height=88,
+        key="import_share_code",
+    )
+    import_name = st.text_input("自定义菜单名称（可选）", placeholder="留空则自动生成", key="import_menu_name")
+
+    if st.button("确认导入", type="primary", use_container_width=True, key="import_menu"):
+        try:
+            payload = decode_share_code(pasted)
+            new_id = append_menu_from_share(
+                ingredient_ids=payload.ingredient_ids,
+                energy_tags=payload.energy_tags,
+                menu_name=import_name.strip(),
+                description=f"由极客口令导入 · 预估分数 {payload.estimated_score:.2f}",
+            )
+            menu_row = get_menu_by_id(new_id)
+            st.success(f"已导入 · {menu_row['menu_name']}（{new_id}）")
+        except ShareCodeError as exc:
+            st.error(str(exc))
+        except ValueError as exc:
+            st.error(str(exc))
+
+
+def _render_action_zone() -> None:
+    if "export_action_panel" not in st.session_state:
+        st.session_state.export_action_panel = None
+
+    panel = st.session_state.export_action_panel
+    col_poster, col_import = st.columns(2, gap="small")
+    with col_poster:
+        if st.button(
+            "🖼️ 制作生活志海报",
+            key="export_btn_poster",
+            use_container_width=True,
+            type="primary" if panel == "poster" else "secondary",
+        ):
+            st.session_state.export_action_panel = None if panel == "poster" else "poster"
+            st.rerun()
+    with col_import:
+        if st.button(
+            "📥 导入菜单口令",
+            key="export_btn_import",
+            use_container_width=True,
+            type="primary" if panel == "import" else "secondary",
+        ):
+            st.session_state.export_action_panel = None if panel == "import" else "import"
+            st.rerun()
+
+    if panel == "poster":
+        st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
+        _render_poster_panel()
+        st.markdown("</div>", unsafe_allow_html=True)
+    elif panel == "import":
+        st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
+        _render_import_panel()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 def _record_shared_menus(day: str, menu_ids: list[str]) -> None:
     if menu_ids:
         record_menu_archive(day, menu_ids, is_shared=True)
@@ -230,7 +296,7 @@ def _render_past_menus_tab() -> None:
         pick_date,
         pick_key="past_date",
         month_key="past_month",
-        extra_params={**_CAL_EXTRA, "export_tab": "past"},
+        extra_params={**_CAL_EXTRA, "export_tab": "calendar"},
     )
     prev_date = st.session_state.get("past_menu_date")
     st.session_state.past_menu_date = pick_date
@@ -246,7 +312,7 @@ def _render_past_menus_tab() -> None:
         st.info(f"{pick_date} 暂无已保存的菜单记录。")
         return
 
-    st.markdown("---")
+    st.caption(f"{pick_date} 菜单")
     _render_menu_summary(pick_date, menu_ids)
 
     if not rows:
@@ -264,7 +330,7 @@ def _render_past_menus_tab() -> None:
             key="day_share_display",
         )
 
-    st.markdown("**单道菜口令**")
+    st.caption("单道菜口令")
     for row in rows:
         score = get_menu_weight(row["menu_id"])
         code = encode_share_code(
@@ -293,7 +359,7 @@ def _render_history_share_tab() -> None:
         pick_date,
         pick_key="hist_date",
         month_key="hist_month",
-        extra_params={**_CAL_EXTRA, "export_tab": "history"},
+        extra_params={**_CAL_EXTRA, "export_tab": "trail"},
     )
     st.session_state.hist_menu_date = pick_date
 
@@ -303,7 +369,6 @@ def _render_history_share_tab() -> None:
         st.info(f"{pick_date} 暂无回顾记录。")
         return
 
-    st.markdown("---")
     for _, row in day_logs.iterrows():
         with st.container(border=True):
             st.markdown(f"**{row['label']}**")
@@ -311,7 +376,7 @@ def _render_history_share_tab() -> None:
                 f"从容度 {int(row['operation_score'])}/5 · NPS {int(row['taste_score'])}/5 · "
                 f"{'已收藏' if row['is_favorited'] else '未收藏'}"
             )
-            if st.button(f"生成口令", key=f"share_hist_{row['log_id']}", use_container_width=True):
+            if st.button("生成口令", key=f"share_hist_{row['log_id']}", use_container_width=True):
                 menu_row = get_menu_by_id(row["menu_id"])
                 if menu_row:
                     score = get_menu_weight(row["menu_id"])
@@ -331,6 +396,13 @@ def _render_history_share_tab() -> None:
         )
 
 
+def _fav_matches_keyword(haystack: str, keyword: str) -> bool:
+    q = keyword.strip()
+    if not q:
+        return True
+    return q.lower() in haystack.lower()
+
+
 def _render_fav_menus_subtab() -> None:
     menus = load_favorites_menus()
     all_menus = load_menus()
@@ -340,12 +412,28 @@ def _render_fav_menus_subtab() -> None:
         st.caption("暂无收藏组合 · 可在「菜单」页点击「收藏此菜单」")
         return
 
+    keyword = st.text_input(
+        "搜索全天菜单",
+        placeholder="输入菜名、日期或关键词",
+        key="fav_menus_search",
+    )
+
+    shown = 0
     for _, row in menus.iterrows():
         ids = [x for x in str(row["menu_ids"]).split("|") if x]
         names = " · ".join(name_map.get(mid, mid) for mid in ids)
-        st.markdown(f"**{row['date']}**")
-        st.caption(names)
-        st.divider()
+        haystack = f"{row['date']} {names} {' '.join(ids)}"
+        if not _fav_matches_keyword(haystack, keyword):
+            continue
+        shown += 1
+        st.markdown(
+            f'<div class="eb-fav-item"><strong>{row["date"]}</strong><br>'
+            f'<span style="color:{TEXT};opacity:0.78;font-size:0.88rem;">{names}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    if keyword.strip() and shown == 0:
+        st.info("未找到匹配的收藏菜单。")
 
 
 def _render_fav_dishes_subtab() -> None:
@@ -357,8 +445,23 @@ def _render_fav_dishes_subtab() -> None:
         st.caption("暂无收藏菜品 · 可在「回顾」页收藏单道菜")
         return
 
+    keyword = st.text_input(
+        "搜索单个菜品",
+        placeholder="输入菜名、日期或关键词",
+        key="fav_dishes_search",
+    )
+
+    shown = 0
     for _, row in dishes.iterrows():
-        st.write(f"· {name_map.get(row['menu_id'], row['menu_id'])}（{row['date']}）")
+        name = name_map.get(row["menu_id"], row["menu_id"])
+        haystack = f"{name} {row['menu_id']} {row['date']}"
+        if not _fav_matches_keyword(haystack, keyword):
+            continue
+        shown += 1
+        st.write(f"· {name}（{row['date']}）")
+
+    if keyword.strip() and shown == 0:
+        st.info("未找到匹配的收藏菜品。")
 
 
 def _render_favorites_tab() -> None:
@@ -369,67 +472,33 @@ def _render_favorites_tab() -> None:
         _render_fav_dishes_subtab()
 
 
-def _render_import_tab() -> None:
-    st.caption("粘贴朋友分享的简愈口令，一键存入私人菜单库。")
-
-    pasted = st.text_area(
-        "粘贴分享口令",
-        placeholder="￥MENU:ING_001|ING_002:快速供能·肠脑舒缓:0.85￥",
-        height=88,
-        key="import_share_code",
-    )
-    import_name = st.text_input("自定义菜单名称（可选）", placeholder="留空则自动生成", key="import_menu_name")
-
-    if st.button("确认导入", type="primary", use_container_width=True, key="import_menu"):
-        try:
-            payload = decode_share_code(pasted)
-            new_id = append_menu_from_share(
-                ingredient_ids=payload.ingredient_ids,
-                energy_tags=payload.energy_tags,
-                menu_name=import_name.strip(),
-                description=f"由极客口令导入 · 预估分数 {payload.estimated_score:.2f}",
-            )
-            menu_row = get_menu_by_id(new_id)
-            st.success(f"已导入 · {menu_row['menu_name']}（{new_id}）")
-        except ShareCodeError as exc:
-            st.error(str(exc))
-        except ValueError as exc:
-            st.error(str(exc))
+def _render_asset_tabs() -> None:
+    tab_fav, tab_cal, tab_trail = st.tabs(["🌟 我的收藏", "📅 日历回顾", "📤 分享轨迹"])
+    with tab_fav:
+        _render_favorites_tab()
+    with tab_cal:
+        _render_past_menus_tab()
+    with tab_trail:
+        _render_history_share_tab()
 
 
 def render() -> None:
     init_database()
     hydrate_today_state()
+    apply_gallery_pick_action()
     menus = load_menus()
 
+    _inject_export_ui_css()
+
     if st.session_state.pop("review_complete", False):
+        st.session_state.export_action_panel = "poster"
         st.success("回顾已完成 · 上传实拍，生成今日全日生活志海报吧。")
 
     if menus.empty:
         st.warning("菜单库为空。")
         return
 
-    if "export_tab_key" not in st.session_state:
-        st.session_state.export_tab_key = "poster"
+    _render_action_zone()
 
-    tab_keys = [k for k, _ in TAB_OPTIONS]
-    st.radio(
-        "分享分区",
-        options=tab_keys,
-        format_func=lambda k: TAB_LABEL_MAP[k],
-        horizontal=True,
-        key="export_tab_key",
-        label_visibility="collapsed",
-    )
-
-    active = st.session_state.export_tab_key
-    if active == "poster":
-        _render_poster_tab()
-    elif active == "past":
-        _render_past_menus_tab()
-    elif active == "history":
-        _render_history_share_tab()
-    elif active == "favorites":
-        _render_favorites_tab()
-    elif active == "import":
-        _render_import_tab()
+    st.markdown('<div class="eb-export-spacer"></div>', unsafe_allow_html=True)
+    _render_asset_tabs()

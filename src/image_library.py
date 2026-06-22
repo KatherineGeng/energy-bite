@@ -2,13 +2,43 @@
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import streamlit as st
 
 from src.database import get_app_image_bytes, list_app_images, save_app_image
+from src.nav_params import append_nav_params
+
+
+def _gallery_pick_href(image_id: str) -> str:
+    page = st.session_state.get("current_page", "export")
+    return append_nav_params(
+        f"?nav={quote(page)}&export_tab=poster&gallery_pick={quote(image_id)}"
+    )
+
+
+def apply_gallery_pick_action() -> None:
+    """Toggle poster gallery selection from URL (mobile-safe)."""
+    from src.query_nav import pop_query_param
+
+    pick = pop_query_param("gallery_pick")
+    if not pick:
+        return
+    key = "poster_gallery"
+    selected = list(st.session_state.get(key, []))
+    if pick in selected:
+        selected = [x for x in selected if x != pick]
+    elif len(selected) < 2:
+        selected.append(pick)
+    else:
+        st.toast("最多选择 2 张")
+    st.session_state[key] = selected
+    st.session_state["poster_gallery_open"] = True
+    st.rerun()
 
 
 def render_gallery_picker(key: str, *, max_select: int = 2) -> list[bytes]:
-    """Collapsed gallery: expand on「查看」, then pick images for poster."""
+    """Collapsed gallery: expand on「查看」, pick via HTML links."""
     images = list_app_images()
     open_key = f"{key}_open"
     selected_ids: list[str] = list(st.session_state.get(key, []))
@@ -17,11 +47,11 @@ def render_gallery_picker(key: str, *, max_select: int = 2) -> list[bytes]:
         st.caption("图片库暂无图片。上传餐食照片后会自动收录。")
         return []
 
+    if st.session_state.get("poster_gallery_open"):
+        st.session_state[open_key] = True
+
     picked_n = len(selected_ids)
-    if picked_n:
-        hint = f"已选 {picked_n}/{max_select} 张"
-    else:
-        hint = f"共 {len(images)} 张可选"
+    hint = f"已选 {picked_n}/{max_select} 张" if picked_n else f"共 {len(images)} 张可选"
 
     head_col, action_col = st.columns([3, 1], gap="small")
     with head_col:
@@ -30,16 +60,16 @@ def render_gallery_picker(key: str, *, max_select: int = 2) -> list[bytes]:
         if st.session_state.get(open_key):
             if st.button("收起", key=f"{key}_close", use_container_width=True):
                 st.session_state[open_key] = False
+                st.session_state.pop("poster_gallery_open", None)
                 st.rerun()
-        else:
-            if st.button("查看", key=f"{key}_open", use_container_width=True):
-                st.session_state[open_key] = True
-                st.rerun()
+        elif st.button("查看", key=f"{key}_open", use_container_width=True):
+            st.session_state[open_key] = True
+            st.rerun()
 
     if not st.session_state.get(open_key):
         return _selected_bytes(selected_ids)
 
-    st.caption(f"点选最多 {max_select} 张（再次点击取消选择）")
+    st.caption(f"点「选择」标记图片（最多 {max_select} 张，再次点击取消）")
     cols = st.columns(3)
     for i, row in enumerate(images):
         img_id = str(row["image_id"])
@@ -49,15 +79,12 @@ def render_gallery_picker(key: str, *, max_select: int = 2) -> list[bytes]:
                 st.image(data, use_container_width=True)
             picked = img_id in selected_ids
             label = "✓ 已选" if picked else "选择"
-            if st.button(label, key=f"{key}_{img_id}", use_container_width=True):
-                if picked:
-                    selected_ids = [x for x in selected_ids if x != img_id]
-                elif len(selected_ids) < max_select:
-                    selected_ids = selected_ids + [img_id]
-                else:
-                    st.toast(f"最多选择 {max_select} 张")
-                st.session_state[key] = selected_ids
-                st.rerun()
+            cls = "eb-gallery-pick-btn picked" if picked else "eb-gallery-pick-btn"
+            href = _gallery_pick_href(img_id)
+            st.markdown(
+                f'<a class="{cls}" href="{href}">{label}</a>',
+                unsafe_allow_html=True,
+            )
 
     return _selected_bytes(selected_ids)
 

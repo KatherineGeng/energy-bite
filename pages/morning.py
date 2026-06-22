@@ -36,6 +36,7 @@ from src.nutrition import coverage_summary
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
 from src.mobile_ui import (
     MENU_GEN_ICON,
+    render_inline_remove_link,
     render_meal_action_row,
     render_primary_action_link,
 )
@@ -625,13 +626,8 @@ def _render_meal_sections(
                         f"**{meal_type}** · 手工菜记录已过期（{menu_id}）"
                     )
                     st.caption("服务器更新后库内记录可能清空，请点「移除」后重新添加。")
-                    if not locked:
-                        _render_meal_toolbar(
-                            meal_type,
-                            menu_id=menu_id,
-                            show_remove=True,
-                            key_suffix=f"orphan_{menu_id}",
-                        )
+                    if not locked and len(menu_ids) > 1:
+                        render_inline_remove_link(meal_type, menu_id)
                     continue
 
                 if idx > 0:
@@ -650,12 +646,7 @@ def _render_meal_sections(
                 st.caption(f"食材：{ingredients}")
 
                 if not locked and len(menu_ids) > 1:
-                    _render_meal_toolbar(
-                        meal_type,
-                        menu_id=menu_id,
-                        show_remove=True,
-                        key_suffix=f"{menu_id}_rm",
-                    )
+                    render_inline_remove_link(meal_type, menu_id)
 
             if not locked:
                 footer: list[tuple[str, str, str | None]] = [
@@ -663,11 +654,7 @@ def _render_meal_sections(
                     ("library", "菜单库添加", None),
                 ]
                 if len(menu_ids) == 1:
-                    footer = [
-                        ("remove", "移除", menu_ids[0]),
-                        ("manual", "手工添加", None),
-                        ("library", "菜单库添加", None),
-                    ]
+                    footer.insert(0, ("remove", "移除", menu_ids[0]))
                 _render_meal_toolbar_items(meal_type, footer)
 
             if not locked:
@@ -749,7 +736,7 @@ def render() -> None:
         st.success("今日就餐计划已确认 · 可前往「回顾」填写评价。")
 
     if st.session_state.pop("menu_fav_flash", False):
-        st.success("已收藏此套菜单 · 可在「分享 → 收藏菜单 → 全天菜单」查看。")
+        st.success("已收藏此套菜单 · 可在「分享 → 我的收藏 → 全天菜单」查看。")
 
     morning = _get_morning_inputs()
     meal_count = int(morning.get("meal_count", st.session_state.get("morning_meal_count", 3)))

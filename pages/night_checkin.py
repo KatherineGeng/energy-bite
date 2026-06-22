@@ -12,6 +12,8 @@ from src.database import (
     append_log,
     get_menu_row,
     init_database,
+    load_favorites_dishes,
+    remove_favorite_dish,
     save_favorite_dish,
     save_favorite_menu_set,
     save_morning_context,
@@ -29,13 +31,31 @@ def _score_btn(x: int) -> str:
     return str(x)
 
 
-def _apply_review_fav_toggle() -> None:
+def _apply_review_fav_toggle(today: str) -> None:
     menu_id = pop_query_param("review_fav")
     if not menu_id:
         return
     key = f"review_{menu_id}_fav_dish"
-    st.session_state[key] = not bool(st.session_state.get(key, False))
+    new_val = not bool(st.session_state.get(key, False))
+    st.session_state[key] = new_val
+    if new_val:
+        save_favorite_dish(menu_id, today)
+        st.toast("已收藏此菜品", icon="❤️")
+    else:
+        remove_favorite_dish(menu_id, today)
+        st.toast("已取消收藏")
     st.rerun()
+
+
+def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
+    df = load_favorites_dishes()
+    if df.empty:
+        return
+    for menu_id in menu_ids:
+        key = f"review_{menu_id}_fav_dish"
+        if key not in st.session_state:
+            hit = not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
+            st.session_state[key] = hit
 
 
 def _ritual_line() -> str:
@@ -249,6 +269,7 @@ def _render_evening_section(confirmed: dict) -> None:
 
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
+    _hydrate_review_favorites(menu_ids, today)
     for menu_id in menu_ids:
         menu_row = get_menu_row(menu_id, snapshots)
         if not menu_row:
@@ -361,10 +382,9 @@ def _render_evening_section(confirmed: dict) -> None:
 def render() -> None:
     init_database()
     hydrate_today_state()
-    _apply_review_fav_toggle()
-    _inject_review_card_css()
-
     today_iso = st.session_state.get("today_date", date.today().isoformat())
+    _apply_review_fav_toggle(today_iso)
+    _inject_review_card_css()
     _render_morning_section(today_iso)
 
     confirmed = get_confirmed_plan(today_iso)

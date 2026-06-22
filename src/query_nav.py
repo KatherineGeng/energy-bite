@@ -36,8 +36,13 @@ def pop_query_param(key: str) -> str | None:
 
 def apply_query_nav(valid_pages: set[str]) -> None:
     export_tab = qp_first("export_tab")
-    if export_tab:
-        st.session_state.export_tab_key = export_tab
+    if export_tab == "poster":
+        st.session_state.export_action_panel = "poster"
+    elif export_tab == "import":
+        st.session_state.export_action_panel = "import"
+    elif export_tab in ("past", "calendar", "history", "trail", "favorites"):
+        # Asset tabs — keep action panel state; user switches tab manually.
+        pass
 
     nav = st.query_params.get("nav")
     if isinstance(nav, list):

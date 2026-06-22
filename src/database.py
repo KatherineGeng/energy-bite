@@ -845,9 +845,24 @@ def save_favorite_dish(menu_id: str, date: str) -> None:
         "date": date,
         "saved_at": datetime.now().isoformat(timespec="seconds"),
     }
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    _write_csv(df, FAVORITES_DISHES_FILE)
+    legacy = _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS)
+    legacy = pd.concat([legacy, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(legacy, FAVORITES_DISHES_FILE)
     record_menu_archive(date, [menu_id], is_favorited=True)
+
+
+def remove_favorite_dish(menu_id: str, date: str) -> None:
+    legacy = _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS)
+    if not legacy.empty:
+        legacy = legacy[~((legacy["menu_id"] == menu_id) & (legacy["date"] == date))]
+        _write_csv(legacy, FAVORITES_DISHES_FILE)
+    archive = load_menu_archive()
+    if not archive.empty:
+        mask = (archive["date"] == date) & (archive["menu_ids"] == menu_id)
+        if mask.any():
+            idx = archive[mask].index[-1]
+            archive.at[idx, "is_favorited"] = "0"
+            _write_csv(archive, MENU_ARCHIVE_FILE)
 
 
 def save_favorite_menu_set(menu_ids: list[str], date: str) -> None:

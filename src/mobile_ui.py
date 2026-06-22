@@ -168,8 +168,44 @@ def inject_mobile_css() -> None:
         }}
         .eb-meal-action-row.eb-meal-actions-3 .eb-meal-action-btn {{
             flex: 1 1 0 !important;
-            font-size: 0.78rem !important;
-            padding: 0.5rem 0.08rem !important;
+            font-size: 0.76rem !important;
+            padding: 0.48rem 0.06rem !important;
+        }}
+        .eb-inline-remove-wrap {{
+            display: flex !important;
+            justify-content: flex-end !important;
+            margin: 0.2rem 0 0.35rem !important;
+        }}
+        .eb-inline-remove-btn {{
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-width: 4.2rem !important;
+            padding: 0.42rem 0.65rem !important;
+            font-size: 0.82rem !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            color: {TEXT} !important;
+            background: rgba(255,255,255,0.9) !important;
+            border: 1px solid rgba(141, 163, 153, 0.32) !important;
+        }}
+        .eb-gallery-pick-btn {{
+            display: block !important;
+            width: 100% !important;
+            margin-top: 0.25rem !important;
+            padding: 0.45rem 0.2rem !important;
+            text-align: center !important;
+            font-size: 0.82rem !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            color: {TEXT} !important;
+            background: rgba(255,255,255,0.92) !important;
+            border: 1px solid rgba(141, 163, 153, 0.32) !important;
+        }}
+        .eb-gallery-pick-btn.picked {{
+            background: {ACCENT} !important;
+            color: #fff !important;
+            border-color: {ACCENT} !important;
         }}
         .eb-meal-action-btn {{
             flex: 1 1 0 !important;
@@ -444,6 +480,17 @@ def _meal_action_href(meal_act: str, meal_type: str, menu_id: str | None = None)
     if menu_id:
         href += f"&mid={quote(menu_id)}"
     return append_nav_params(href)
+
+
+def render_inline_remove_link(meal_type: str, menu_id: str) -> None:
+    """Compact remove link — avoids full-width single-button row on multi-dish meals."""
+    href = _meal_action_href("remove", meal_type, menu_id)
+    st.markdown(
+        f'<div class="eb-inline-remove-wrap">'
+        f'<a class="eb-inline-remove-btn" href="{href}">移除</a>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_meal_action_row(

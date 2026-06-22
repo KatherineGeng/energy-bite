@@ -70,8 +70,8 @@ if "last_gen_note" not in st.session_state:
     st.session_state.last_gen_note = None
 if "ai_fresh_menu_ids" not in st.session_state:
     st.session_state.ai_fresh_menu_ids = []
-if "export_tab_key" not in st.session_state:
-    st.session_state.export_tab_key = "poster"
+if "export_action_panel" not in st.session_state:
+    st.session_state.export_action_panel = None
 
 VALID_PAGES = {"morning", "night", "export", "admin"}
 apply_query_nav(VALID_PAGES)
