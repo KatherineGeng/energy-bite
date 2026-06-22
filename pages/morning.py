@@ -31,13 +31,13 @@ from src.meal_plan_utils import (
 )
 from src.session_hydrate import hydrate_today_state
 from src.llm_client import has_api_key
-from src.coverage_widget import render_daily_coverage_table, render_meal_headline
+from src.coverage_widget import render_daily_coverage_table
 from src.nutrition import coverage_summary
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
 from src.mobile_ui import (
     MENU_GEN_ICON,
-    render_inline_remove_link,
     render_meal_action_row,
+    render_meal_dish_header,
     render_primary_action_link,
 )
 from src.nav_params import append_nav_params
@@ -433,7 +433,7 @@ def _render_manual_add(meal_type: str, ui: dict) -> None:
         key=f"manual_search_{meal_type}",
     )
     query = name.strip()
-    if len(query) >= 2:
+    if query:
         matches = search_menus_by_keyword(query)
         if not matches.empty:
             st.caption("库内相似菜品（可直接选用）：")
@@ -634,31 +634,44 @@ def _render_meal_sections(
                 if not row:
                     if idx > 0:
                         st.divider()
-                    st.markdown(
-                        f"**{meal_type}** · 手工菜记录已过期（{menu_id}）"
-                    )
                     st.caption("服务器更新后库内记录可能清空，请点「移除」后重新添加。")
                     if not locked and len(menu_ids) > 1:
-                        render_inline_remove_link(meal_type, menu_id)
+                        href = append_nav_params(
+                            f"?nav=morning&meal_act=remove&meal={quote(meal_type)}&mid={quote(menu_id)}"
+                        )
+                        st.markdown(
+                            f'<div class="eb-meal-head-row">'
+                            f'<div class="eb-meal-head-title"><strong>{meal_type}</strong> · 手工菜记录已过期（{menu_id}）</div>'
+                            f'<a class="eb-meal-head-remove" href="{href}">移除</a>'
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(f"**{meal_type}** · 手工菜记录已过期（{menu_id}）")
                     continue
 
                 if idx > 0:
                     st.divider()
 
-                render_meal_headline(
+                multi = len(menu_ids) > 1
+                render_meal_dish_header(
                     meal_type,
                     row,
                     idx=idx,
-                    locked=locked,
-                    widget_key=f"head_{meal_type}_{menu_id}_{idx}",
+                    menu_id=menu_id,
+                    show_remove=not locked and multi,
                     ai_fresh=menu_id in ai_fresh_ids,
+                )
+
+                tags_str = str(row.get("energy_tags", "")).replace("·", " · ")
+                prep = f"⏱ {row['prep_minutes']} min"
+                st.markdown(
+                    f'<span class="eb-meal-meta-inline">{tags_str} · {prep}</span>',
+                    unsafe_allow_html=True,
                 )
 
                 ingredients = _ingredients_display(row, ingredient_map)
                 st.caption(f"食材：{ingredients}")
-
-                if not locked and len(menu_ids) > 1:
-                    render_inline_remove_link(meal_type, menu_id)
 
             if not locked:
                 footer: list[tuple[str, str, str | None]] = [

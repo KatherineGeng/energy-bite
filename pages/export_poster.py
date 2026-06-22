@@ -33,21 +33,38 @@ def _inject_export_ui_css() -> None:
             margin: 0 0 0.45rem;
             line-height: 1.35;
         }
-        .eb-export-panel {
-            margin: 0.55rem 0 0.75rem;
-            padding: 0.85rem 0.65rem 0.35rem;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.55);
-            border: 1px solid rgba(141, 163, 153, 0.18);
+        .eb-export-top-actions [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
         }
-        .eb-export-top-actions button,
-        .eb-export-trail-action button {
-            min-height: 2.95rem !important;
+        .eb-export-top-actions [data-testid="column"] {
+            flex: 1 1 50% !important;
+            min-width: 0 !important;
+        }
+        .eb-export-top-actions button {
+            min-height: 2.55rem !important;
             font-weight: 600 !important;
-            font-size: 0.86rem !important;
+            font-size: 0.84rem !important;
+            padding: 0.35rem 0.2rem !important;
+        }
+        .eb-export-trail-action button {
+            min-height: 2.55rem !important;
+            font-weight: 600 !important;
+            font-size: 0.84rem !important;
         }
         .eb-poster-hero {
-            margin: 0.25rem 0 0.85rem;
+            margin: 0.15rem 0 0.55rem;
+        }
+        .eb-poster-hero [data-testid="stImage"] {
+            margin: 0 !important;
+        }
+        .eb-poster-hero [data-testid="stImage"] img {
+            max-height: 46vh !important;
+            width: 100% !important;
+            object-fit: contain !important;
+        }
+        .eb-export-panel {
+            margin: 0.35rem 0 0.55rem;
+            padding: 0.65rem 0.55rem 0.25rem;
         }
         .eb-export-trail-wrap {
             margin-top: 0.35rem;
@@ -108,11 +125,9 @@ def _record_shared_menus(day: str, menu_ids: list[str]) -> None:
 def _render_default_poster() -> None:
     st.markdown('<div class="eb-poster-hero">', unsafe_allow_html=True)
     if st.session_state.get("poster_bytes"):
-        st.image(st.session_state.poster_bytes, caption="最新生活志海报", use_container_width=True)
+        st.image(st.session_state.poster_bytes, use_container_width=True)
     elif _SAMPLE_POSTER.is_file():
-        st.image(str(_SAMPLE_POSTER), caption="样本海报 · 生成后将替换为实拍版", use_container_width=True)
-    else:
-        st.caption("生成海报后将在此预览")
+        st.image(str(_SAMPLE_POSTER), use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 

@@ -951,29 +951,37 @@ def get_menus_by_pick_frequency() -> pd.DataFrame:
     return menus
 
 
-def search_menus_by_keyword(query: str, limit: int = 6) -> pd.DataFrame:
+def search_menus_by_keyword(query: str, limit: int = 12) -> pd.DataFrame:
     """Fuzzy match menu names in the library (case-insensitive substring)."""
     q = query.strip()
-    if len(q) < 2:
+    if not q:
         return _empty_frame(MENU_COLUMNS)
 
     menus = load_menus()
     if menus.empty:
         return menus
 
+    exact = menus[menus["menu_name"].astype(str).str.strip() == q]
     mask = menus["menu_name"].str.contains(q, case=False, na=False)
-    # Also match description and energy tags
     for col in ("description", "energy_tags"):
         if col in menus.columns:
             mask = mask | menus[col].astype(str).str.contains(q, case=False, na=False)
 
     hits = menus[mask].copy()
-    if hits.empty:
+    if hits.empty and exact.empty:
         return hits
+
+    if not exact.empty:
+        hits = pd.concat([exact, hits[~hits["menu_id"].isin(exact["menu_id"])]], ignore_index=True)
 
     counts = get_menu_pick_counts()
     hits["pick_count"] = hits["menu_id"].map(lambda mid: counts.get(str(mid), 0))
-    return hits.sort_values(["pick_count", "menu_name"], ascending=[False, True]).head(limit)
+    hits["exact_match"] = hits["menu_name"].astype(str).str.strip() == q
+    return (
+        hits.sort_values(["exact_match", "pick_count", "menu_name"], ascending=[False, False, True])
+        .head(limit)
+        .drop(columns=["exact_match"], errors="ignore")
+    )
 
 
 def _ingredient_token_match(token: str, library_name: str) -> bool:

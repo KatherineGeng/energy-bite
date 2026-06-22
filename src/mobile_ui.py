@@ -173,22 +173,32 @@ def inject_mobile_css() -> None:
             padding: 0.48rem 0.06rem !important;
         }}
         .eb-inline-remove-wrap {{
-            display: flex !important;
-            justify-content: flex-end !important;
-            margin: 0.2rem 0 0.35rem !important;
+            display: none !important;
         }}
-        .eb-inline-remove-btn {{
+        .eb-meal-head-row {{
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
+        }}
+        .eb-meal-head-title {{
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }}
+        a.eb-meal-head-remove {{
+            flex: 0 0 auto !important;
             display: inline-flex !important;
             align-items: center !important;
-            justify-content: center !important;
-            min-width: 4.2rem !important;
-            padding: 0.42rem 0.65rem !important;
-            font-size: 0.82rem !important;
+            padding: 0.2rem 0.55rem !important;
+            font-size: 0.78rem !important;
             text-decoration: none !important;
             border-radius: 8px !important;
             color: {TEXT} !important;
             background: rgba(255,255,255,0.9) !important;
             border: 1px solid rgba(141, 163, 153, 0.32) !important;
+            white-space: nowrap !important;
         }}
         .eb-gallery-pick-btn {{
             display: block !important;
@@ -481,6 +491,33 @@ def _meal_action_href(meal_act: str, meal_type: str, menu_id: str | None = None)
     if menu_id:
         href += f"&mid={quote(menu_id)}"
     return append_nav_params(href)
+
+
+def render_meal_dish_header(
+    meal_type: str,
+    row: dict,
+    *,
+    idx: int,
+    menu_id: str | None = None,
+    show_remove: bool = False,
+    ai_fresh: bool = False,
+) -> None:
+    """Dish title row; multi-dish meals put compact 移除 on the same line."""
+    ai_tag = " · `AI新菜`" if ai_fresh else ""
+    if idx == 0:
+        title = f"<strong>{meal_type}</strong> · <strong>{row['menu_name']}</strong>{ai_tag}"
+    else:
+        title = f"· <strong>{row['menu_name']}</strong>{ai_tag}"
+
+    remove_html = ""
+    if show_remove and menu_id:
+        href = _meal_action_href("remove", meal_type, menu_id)
+        remove_html = f'<a class="eb-meal-head-remove" href="{href}">移除</a>'
+
+    st.markdown(
+        f'<div class="eb-meal-head-row"><div class="eb-meal-head-title">{title}</div>{remove_html}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_inline_remove_link(meal_type: str, menu_id: str) -> None:
