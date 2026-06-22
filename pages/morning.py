@@ -1,4 +1,4 @@
-"""Morning workbench — Energy Bite 4.0."""
+"""Morning workbench — 简愈一人食."""
 
 from __future__ import annotations
 
@@ -6,11 +6,18 @@ from datetime import date
 
 import streamlit as st
 
-from src.database import get_ingredient_map, get_menu_by_id, init_database, load_menus
+from src.database import (
+    get_ingredient_map,
+    get_menu_by_id,
+    init_database,
+    load_menus,
+    load_morning_context,
+    save_morning_context,
+)
 from src.nutrition import coverage_summary
 from src.query_nav import clear_query_action
 from src.recommendation import format_ingredient_names, get_daily_menus
-from src.theme import page_title, section_title
+from src.theme import section_title
 
 
 def _sync_draft(menu_ids: list[str]) -> None:
@@ -37,6 +44,22 @@ def _get_morning_inputs() -> dict:
     )
 
 
+def _apply_saved_context(today_iso: str) -> None:
+    if st.session_state.get("morning_context_loaded") == today_iso:
+        return
+    saved = load_morning_context(today_iso)
+    if saved:
+        st.session_state.morning_sleep = saved["sleep"]
+        st.session_state.morning_load = saved["load"]
+        st.session_state.morning_meal_count = int(saved["meal_count"])
+        st.session_state.morning_inputs = {
+            "sleep": saved["sleep"],
+            "load": saved["load"],
+            "meal_count": int(saved["meal_count"]),
+        }
+    st.session_state.morning_context_loaded = today_iso
+
+
 def _remove_menu(menu_id: str) -> None:
     ids = [mid for mid in st.session_state.current_day_menus if mid != menu_id]
     _sync_draft(ids)
@@ -51,29 +74,8 @@ def _add_menu(menu_id: str) -> None:
         st.session_state.final_daily_list = []
 
 
-def render() -> None:
-    from src.mobile_ui import render_action_row
-
-    init_database()
-    all_menus = load_menus()
-
-    page_title("fa-sun", "晨间餐饮", "规划今日一人食，确认后进入晚间回顾。")
-
-    locked = st.session_state.get("menu_locked", False)
-    if locked and st.session_state.get("final_daily_list"):
-        st.success("今日就餐计划已确认 · 可前往「晚间回顾」。")
-
-    sleep = st.selectbox("昨晚睡眠状态", ["很好", "良好", "一般", "较差"], key="morning_sleep")
-    load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
-    meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
-
-    render_action_row(
-        [
-            ("gen", "🍴", "生成", True, locked),
-            ("shuffle", "🔀", "换套", False, locked),
-        ]
-    )
-
+def _handle_menu_actions(sleep: str, load: str, meal_count: int, locked: bool) -> bool:
+    """Run gen/shuffle query actions. Returns True if rerun was triggered."""
     act = st.query_params.get("act")
     if act == "gen" and not locked:
         recs = get_daily_menus(sleep, load, int(meal_count))
@@ -95,11 +97,65 @@ def render() -> None:
         _store_recommendations(new_recs)
         clear_query_action()
         st.rerun()
+    return False
+
+
+def render() -> None:
+    from src.mobile_ui import render_action_row
+
+    init_database()
+    all_menus = load_menus()
+    today_iso = st.session_state.get("today_date", date.today().isoformat())
+
+    locked = st.session_state.get("menu_locked", False)
+    if locked and st.session_state.get("final_daily_list"):
+        st.success("今日就餐计划已确认 · 可前往「回顾」。")
+
+    _apply_saved_context(today_iso)
 
     menu_ids: list[str] = list(st.session_state.get("current_day_menus", []))
-    if not menu_ids:
-        st.info("点击「生成」或「换套」，开始规划今日一人食。")
+    planning_phase = len(menu_ids) == 0
+
+    sleep = st.session_state.get("morning_sleep", "良好")
+    load = st.session_state.get("morning_load", "中等")
+    meal_count = st.session_state.get("morning_meal_count", 3)
+
+    if planning_phase:
+        section_title("fa-sun", "晨间三问")
+
+        sleep = st.selectbox("昨晚睡眠状态", ["很好", "良好", "一般", "较差"], key="morning_sleep")
+        load = st.selectbox("今日脑力/体力消耗", ["低", "中等", "高"], index=1, key="morning_load")
+        meal_count = st.selectbox("今日一人食餐数", [1, 2, 3], index=2, key="morning_meal_count")
+
+        if st.button("记录", type="secondary", use_container_width=True, key="save_morning_context"):
+            save_morning_context(today_iso, sleep, load, int(meal_count))
+            st.session_state.morning_inputs = {
+                "sleep": sleep,
+                "load": load,
+                "meal_count": int(meal_count),
+            }
+            st.session_state.morning_context_loaded = today_iso
+            st.success("晨间三问已记录，可随时更新改写。")
+            st.rerun()
+
+        render_action_row(
+            [
+                ("gen", "🍴", "生成菜单", True, locked),
+                ("shuffle", "🔀", "换套菜单", False, locked),
+            ]
+        )
+        _handle_menu_actions(sleep, load, int(meal_count), locked)
+        st.info("开始规划餐食，今天想吃什么？")
         return
+
+    # 菜单调整阶段：隐藏晨间三问
+    render_action_row(
+        [
+            ("gen", "🍴", "生成菜单", True, locked),
+            ("shuffle", "🔀", "换套菜单", False, locked),
+        ]
+    )
+    _handle_menu_actions(sleep, load, int(meal_count), locked)
 
     section_title("fa-clipboard-list", "今日菜单")
 

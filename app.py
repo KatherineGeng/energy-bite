@@ -9,7 +9,7 @@ from datetime import date
 import streamlit as st
 
 from src.constants import APP_VERSION
-from src.database import count_favorited_menus, init_database
+from src.database import init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
@@ -59,6 +59,6 @@ PAGE_MAP = {
 
 apply_query_nav(set(PAGE_MAP.keys()))
 
-render_top_header(st.session_state.today_date, count_favorited_menus())
+render_top_header(date.fromisoformat(st.session_state.today_date))
 PAGE_MAP[st.session_state.current_page]()
 render_bottom_nav()

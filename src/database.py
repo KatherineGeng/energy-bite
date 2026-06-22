@@ -12,6 +12,7 @@ from src.constants import (
     INGREDIENTS_FILE,
     LOG_FILE,
     MENU_FILE,
+    MORNING_CONTEXT_FILE,
     SCORE_MAX,
     SCORE_MIN,
     WEIGHTS_FILE,
@@ -57,6 +58,7 @@ WEIGHTS_COLUMNS = [
 ]
 FAVORITES_DISHES_COLUMNS = ["fav_id", "menu_id", "date", "saved_at"]
 FAVORITES_MENUS_COLUMNS = ["fav_id", "date", "menu_ids", "saved_at"]
+MORNING_CONTEXT_COLUMNS = ["date", "sleep", "load", "meal_count", "updated_at"]
 
 SEED_INGREDIENTS = """id,name,nutrition_category,role,notes
 ING_001,希腊酸奶(无糖),高钙|优质脂肪,主食|加餐,肠脑轴调节，提供色氨酸
@@ -150,6 +152,9 @@ def init_database(force: bool = False) -> None:
 
     if force or not _csv_path(FAVORITES_MENUS_FILE).exists():
         _write_csv(_empty_frame(FAVORITES_MENUS_COLUMNS), FAVORITES_MENUS_FILE)
+
+    if force or not _csv_path(MORNING_CONTEXT_FILE).exists():
+        _write_csv(_empty_frame(MORNING_CONTEXT_COLUMNS), MORNING_CONTEXT_FILE)
 
 
 def load_ingredients() -> pd.DataFrame:
@@ -410,3 +415,37 @@ def append_menu_from_share(
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     _write_csv(df, MENU_FILE)
     return menu_id
+
+
+def load_morning_context(day: str) -> dict[str, Any] | None:
+    df = _read_csv(MORNING_CONTEXT_FILE, MORNING_CONTEXT_COLUMNS)
+    if df.empty:
+        return None
+    rows = df[df["date"] == day]
+    if rows.empty:
+        return None
+    row = rows.iloc[-1]
+    return {
+        "sleep": str(row["sleep"]),
+        "load": str(row["load"]),
+        "meal_count": int(row["meal_count"]),
+        "updated_at": str(row["updated_at"]),
+    }
+
+
+def save_morning_context(day: str, sleep: str, load: str, meal_count: int) -> None:
+    df = _read_csv(MORNING_CONTEXT_FILE, MORNING_CONTEXT_COLUMNS)
+    now = datetime.now().isoformat(timespec="seconds")
+    row = {
+        "date": day,
+        "sleep": sleep,
+        "load": load,
+        "meal_count": str(int(meal_count)),
+        "updated_at": now,
+    }
+    if df.empty:
+        out = pd.DataFrame([row])
+    else:
+        df = df[df["date"] != day]
+        out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(out[MORNING_CONTEXT_COLUMNS], MORNING_CONTEXT_FILE)

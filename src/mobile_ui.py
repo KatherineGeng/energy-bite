@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import streamlit as st
 
+from src.calendar_utils import display_version, format_today_cn, solar_term_for_date
 from src.constants import APP_VERSION
 from src.theme import ACCENT, TEXT
 
 NAV_ITEMS = [
-    ("morning", "☀️", "晨间"),
-    ("night", "🍃", "晚间"),
+    ("morning", "☀️", "菜单"),
+    ("night", "🍃", "回顾"),
     ("export", "📤", "分享"),
 ]
 
@@ -48,7 +51,6 @@ def inject_mobile_css() -> None:
             overflow-wrap: anywhere !important;
             word-break: break-word !important;
         }}
-        /* HTML 横排按钮组（不依赖 st.columns） */
         .eb-action-row, .eb-bottom-nav {{
             display: flex !important;
             flex-direction: row !important;
@@ -65,12 +67,16 @@ def inject_mobile_css() -> None:
         .eb-action-btn, .eb-nav-link {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            text-align: center !important;
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.28rem !important;
             text-decoration: none !important;
             border-radius: 10px !important;
-            padding: 0.42rem 0.15rem !important;
+            padding: 0.42rem 0.2rem !important;
             font-size: 0.72rem !important;
-            line-height: 1.25 !important;
+            line-height: 1.2 !important;
             color: {TEXT} !important;
             background: rgba(255,255,255,0.85) !important;
             border: 1px solid rgba(141, 163, 153, 0.28) !important;
@@ -87,10 +93,11 @@ def inject_mobile_css() -> None:
             pointer-events: none !important;
         }}
         .eb-action-icon, .eb-nav-icon {{
-            display: block !important;
-            font-size: 1rem !important;
-            line-height: 1.1 !important;
-            margin-bottom: 0.1rem !important;
+            display: inline-block !important;
+            font-size: 0.85rem !important;
+            line-height: 1 !important;
+            margin: 0 !important;
+            flex-shrink: 0 !important;
         }}
         .eb-bottom-nav {{
             position: fixed !important;
@@ -109,12 +116,24 @@ def inject_mobile_css() -> None:
             border-color: rgba(141, 163, 153, 0.45) !important;
             font-weight: 600 !important;
         }}
-        .eb-version-badge {{
+        .eb-title-version {{
+            font-size: 0.72rem;
+            color: {ACCENT};
+            font-weight: 700;
+            margin-left: 0.35rem;
+        }}
+        .eb-date-line {{
             text-align: center;
             font-size: 0.72rem;
             color: {ACCENT};
             font-weight: 700;
-            margin: -0.35rem 0 0.35rem;
+            margin: 0.1rem 0 0.15rem;
+        }}
+        .eb-term-line {{
+            text-align: center;
+            font-size: 0.78rem;
+            color: #64748B;
+            margin: 0 0 0.45rem;
         }}
         div[data-testid="stRadio"] > div {{ flex-wrap: wrap !important; }}
         </style>
@@ -123,27 +142,26 @@ def inject_mobile_css() -> None:
     )
 
 
-def render_top_header(today: str, favorited_count: int) -> None:
+def render_top_header(for_date: date | None = None) -> None:
+    d = for_date or date.today()
+    version = display_version(APP_VERSION)
+    today_line = format_today_cn(d)
+    term = solar_term_for_date(d)
+
     st.markdown(
-        "<h2 style='text-align:center;color:#1E293B;margin:0 0 0.2rem;font-size:1.3rem;'>"
-        "<i class='fa-solid fa-leaf' style='color:#8DA399;'></i> 简愈一人食</h2>",
+        f"<h2 style='text-align:center;color:#1E293B;margin:0 0 0.2rem;font-size:1.3rem;'>"
+        f"<i class='fa-solid fa-leaf' style='color:#8DA399;'></i> 简愈一人食"
+        f"<span class='eb-title-version'>{version}</span></h2>",
         unsafe_allow_html=True,
     )
-    st.markdown(
-        f'<p class="eb-version-badge">版本 {APP_VERSION} · 图标:/app/static/</p>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"<p style='text-align:center;font-size:0.78rem;color:#64748B;margin:0 0 0.45rem;'>"
-        f"今日 {today} · 收藏 {favorited_count} 道</p>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<p class="eb-date-line">{today_line}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="eb-term-line">{term}</p>', unsafe_allow_html=True)
 
 
 def render_action_row(
     items: list[tuple[str, str, str, bool, bool]],
 ) -> None:
-    """Render compact horizontal action links: (act_key, icon, label, primary, disabled)."""
+    """Render horizontal action links: (act_key, icon, label, primary, disabled)."""
     parts: list[str] = []
     for act, icon, label, primary, disabled in items:
         cls = "eb-action-btn"
@@ -151,7 +169,7 @@ def render_action_row(
             cls += " primary"
         if disabled:
             cls += " disabled"
-        inner = f'<span class="eb-action-icon">{icon}</span>{label}'
+        inner = f'<span class="eb-action-icon">{icon}</span><span>{label}</span>'
         if disabled:
             parts.append(f'<span class="{cls}">{inner}</span>')
         else:
@@ -166,6 +184,6 @@ def render_bottom_nav(current_page: str | None = None) -> None:
         active = " active" if page_id == page else ""
         links.append(
             f'<a class="eb-nav-link{active}" href="?nav={page_id}">'
-            f'<span class="eb-nav-icon">{icon}</span>{label}</a>'
+            f'<span class="eb-nav-icon">{icon}</span><span>{label}</span></a>'
         )
     st.markdown(f'<nav class="eb-bottom-nav">{"".join(links)}</nav>', unsafe_allow_html=True)

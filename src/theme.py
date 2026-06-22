@@ -24,12 +24,17 @@ LIFESTYLE_PLACEHOLDER_URL = (
 
 # aria-label (button text) -> Font Awesome solid unicode
 ICON_BUTTON_MAP: dict[str, str] = {
-    "晨间餐饮": "\\f185",       # sun
-    "晚间回顾": "\\f06c",       # leaf
-    "收藏分享": "\\f1e0",       # share-nodes
-    "生成菜单": "\\f2e7",       # utensils
-    "换一套": "\\f074",         # shuffle
-    "确认今日就餐计划": "\\f00c",  # check
+    "菜单": "\\f185",
+    "回顾": "\\f06c",
+    "分享": "\\f1e0",
+    "晨间餐饮": "\\f185",
+    "晚间回顾": "\\f06c",
+    "收藏分享": "\\f1e0",
+    "生成菜单": "\\f2e7",
+    "换套菜单": "\\f074",
+    "换一套": "\\f074",
+    "记录": "\\f0c7",
+    "确认今日就餐计划": "\\f00c",
     "生成海报": "\\f030",       # camera
     "保存至本地": "\\f019",     # download
     "复制分享指南": "\\f0c1",   # link
