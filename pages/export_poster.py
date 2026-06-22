@@ -131,7 +131,7 @@ def _render_poster_tab() -> None:
         key="meal_photos",
     )
     if not uploaded:
-        st.caption("未上传时可从下方 App 图片库选择，或使用系统默认生活方式图")
+        st.caption("未上传时可点「查看」打开 App 图片库选择，或使用系统默认生活方式图")
     if uploaded and len(uploaded) > 2:
         st.warning("最多上传 2 张照片，已自动使用前 2 张。")
         uploaded = uploaded[:2]
