@@ -6,7 +6,6 @@ from datetime import date
 
 import streamlit as st
 
-from components.menu_calendar import render_menu_calendar
 from src.database import (
     append_menu_from_share,
     get_log_history_for_share,
@@ -329,24 +328,24 @@ def _render_past_menus_tab() -> None:
         default = today_iso if today_iso in markers else sorted(markers.keys(), reverse=True)[0]
         st.session_state.past_menu_date = default
 
-    picked = render_menu_calendar(
-        markers,
-        st.session_state.past_menu_date,
+    # Native date picker — reliable on mobile (custom calendar component removed)
+    marked_dates = sorted(markers.keys(), reverse=True)
+    default_date = date.fromisoformat(st.session_state.past_menu_date)
+    picked_date = st.date_input(
+        "选择日期（● 已确认 ○ 草稿见下方列表）",
+        value=default_date,
+        min_value=date.fromisoformat(marked_dates[-1]),
+        max_value=date.fromisoformat(marked_dates[0]),
         key="past_menu_calendar",
     )
-    if picked and picked != st.session_state.past_menu_date:
-        st.session_state.past_menu_date = picked
+    pick_date = picked_date.isoformat()
+    if pick_date != st.session_state.past_menu_date:
+        st.session_state.past_menu_date = pick_date
         st.session_state.day_share_text = ""
-        st.rerun()
 
-    pick_date = st.session_state.past_menu_date
-    status = markers.get(pick_date, "")
-    if status == "confirmed":
-        st.caption(f"已选 **{pick_date}** · 已确认菜单")
-    elif status == "draft":
-        st.caption(f"已选 **{pick_date}** · 草稿菜单")
-    else:
-        st.caption(f"已选 **{pick_date}**")
+    st.caption("有菜单的日期：" + " · ".join(
+        f"{d}({'●' if markers[d] == 'confirmed' else '○'})" for d in marked_dates[:12]
+    ))
 
     saved = load_daily_meal_plan(pick_date)
     menu_ids = saved["menu_ids"] if saved else menu_ids_for_date(pick_date)

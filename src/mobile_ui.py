@@ -33,11 +33,7 @@ def inject_mobile_css() -> None:
         [data-testid="stToolbar"],
         [data-testid="stToolbarActions"],
         [data-testid="stAppDeployButton"],
-        [data-testid="stStatusWidget"],
         [data-testid="stDecoration"],
-        [data-testid="stBottomBlockContainer"],
-        [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"]),
-        iframe[title="streamlit_app"],
         .stAppDeployButton, #MainMenu,
         .viewerBadge_container, div[class*="viewerBadge"],
         button[kind="header"], [data-testid="baseButton-header"],
@@ -85,7 +81,7 @@ def inject_mobile_css() -> None:
             color: {TEXT};
         }}
         .eb-meal-label {{
-            font-family: 'Noto Serif SC', serif;
+            font-family: inherit;
             font-weight: 600;
         }}
         .eb-meal-meta {{
@@ -187,7 +183,7 @@ def inject_mobile_css() -> None:
             margin: 0 !important;
             flex-shrink: 0 !important;
         }}
-        .eb-bottom-nav {{
+        .eb-bottom-nav-bar {{
             position: fixed !important;
             left: 0 !important;
             right: 0 !important;
@@ -197,6 +193,9 @@ def inject_mobile_css() -> None:
             border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
             padding: 0.38rem max(0.65rem, env(safe-area-inset-left)) calc(0.42rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
             box-shadow: 0 -4px 16px rgba(30, 41, 59, 0.06) !important;
+        }}
+        .eb-bottom-nav-bar [data-testid="stHorizontalBlock"] {{
+            gap: 0.35rem !important;
         }}
         .eb-nav-link.active {{
             background: rgba(141, 163, 153, 0.2) !important;
@@ -226,7 +225,7 @@ def inject_mobile_css() -> None:
             margin-bottom: 0.65rem;
         }}
         .eb-meal-section-title {{
-            font-family: 'Noto Serif SC', serif;
+            font-family: inherit;
             font-size: 0.95rem;
             font-weight: 600;
             color: {TEXT};
@@ -245,7 +244,7 @@ def render_top_header(for_date: date | None = None) -> None:
 
     st.markdown(
         f"<h2 style='text-align:center;color:#1E293B;margin:0 0 0.2rem;font-size:1.3rem;'>"
-        f"<i class='fa-solid fa-leaf' style='color:#8DA399;'></i> 简愈一人食"
+        f"🌿 简愈一人食"
         f"<span class='eb-title-version'>{version}</span></h2>",
         unsafe_allow_html=True,
     )
@@ -277,6 +276,7 @@ def _on_nav(page_id: str) -> None:
 
 def render_bottom_nav(current_page: str | None = None) -> None:
     page = current_page or st.session_state.get("current_page", "morning")
+    st.markdown('<div class="eb-bottom-nav-bar">', unsafe_allow_html=True)
     cols = st.columns(len(NAV_ITEMS))
     for col, (page_id, icon, label) in zip(cols, NAV_ITEMS):
         with col:
@@ -288,3 +288,4 @@ def render_bottom_nav(current_page: str | None = None) -> None:
                 on_click=_on_nav,
                 args=(page_id,),
             )
+    st.markdown("</div>", unsafe_allow_html=True)
