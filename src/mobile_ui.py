@@ -19,6 +19,18 @@ NAV_ITEMS = [
     ("export", "📤", "分享"),
 ]
 
+MENU_GEN_ICON = (
+    '<svg class="eb-menu-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" '
+    'width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<circle cx="12" cy="13.5" r="6.25"/>'
+    '<path d="M7.25 2.75v6.25c0 .97-.78 1.75-1.75 1.75S3.75 9.97 3.75 9V2.75"/>'
+    '<path d="M5.5 2.75v4"/>'
+    '<path d="M18.25 2.75V10l-2 2.75"/>'
+    '<path d="M16.25 2.75h4"/>'
+    "</svg>"
+)
+
 
 def inject_mobile_css() -> None:
     """Safari-safe CSS — no backdrop-filter, no global Streamlit layout overrides."""
@@ -98,6 +110,17 @@ def inject_mobile_css() -> None:
         .eb-nav-icon {{
             font-size: 1.35rem !important;
             line-height: 1 !important;
+        }}
+        .eb-action-icon {{
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
+        }}
+        .eb-menu-svg {{
+            width: 1.35rem !important;
+            height: 1.35rem !important;
+            display: block !important;
         }}
         .eb-gen-btn {{
             display: block !important;
@@ -196,18 +219,63 @@ def inject_mobile_css() -> None:
             font-size: 0.68rem !important;
             padding: 0.38rem 0.15rem !important;
         }}
+        .eb-app-header {{
+            text-align: center;
+            margin: 0 0 0.45rem;
+        }}
         .eb-title-version {{
-            font-size: 0.72rem;
+            display: block;
+            font-size: 0.85rem;
             color: {ACCENT};
             font-weight: 700;
-            margin-left: 0.35rem;
+            text-align: center;
+            margin: 0 0 0.2rem;
+            line-height: 1.2;
+        }}
+        .eb-app-title {{
+            text-align: center;
+            color: {TEXT};
+            margin: 0 0 0.15rem;
+            font-size: 1.55rem;
+            font-weight: 600;
+            line-height: 1.35;
+            white-space: nowrap;
+            font-family: "PingFang SC", "Noto Serif SC", "Songti SC", serif;
+        }}
+        .eb-meal-meta-inline {{
+            font-size: 0.95rem;
+            color: #64748B;
+            line-height: 1.45;
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] [data-testid="column"]:last-child .stPopover {{
+            margin-top: 0 !important;
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] [data-testid="column"]:last-child {{
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 0 !important;
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] [data-testid="column"]:last-child .stPopover > button {{
+            width: auto !important;
+            min-height: unset !important;
+            height: auto !important;
+            padding: 0.05rem 0.35rem !important;
+            margin: 0 !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: {ACCENT} !important;
+            font-size: 0.92rem !important;
+            font-weight: 500 !important;
+            white-space: nowrap !important;
         }}
         .eb-date-line {{
             text-align: center;
             font-size: 1rem;
             color: {ACCENT};
             font-weight: 700;
-            margin: 0.1rem 0 0.45rem;
+            margin: 0;
+            line-height: 1.35;
         }}
         div[data-testid="stRadio"] > div {{ flex-wrap: wrap !important; gap: 0.35rem !important; }}
         div[data-testid="stRadio"] label {{
@@ -270,12 +338,13 @@ def render_top_header(for_date: date | None = None) -> None:
     title = f"🌿 {name}的简愈一人食" if name else "🌿 简愈一人食"
 
     st.markdown(
-        f"<h2 style='text-align:center;color:#1E293B;margin:0 0 0.2rem;font-size:1.55rem;'>"
-        f"{title}"
-        f"<span class='eb-title-version'>{version}</span></h2>",
+        f'<div class="eb-app-header">'
+        f'<p class="eb-app-title">{title}</p>'
+        f'<p class="eb-title-version">{version}</p>'
+        f'<p class="eb-date-line">{today_line}</p>'
+        f"</div>",
         unsafe_allow_html=True,
     )
-    st.markdown(f'<p class="eb-date-line">{today_line}</p>', unsafe_allow_html=True)
 
 
 def render_action_row(

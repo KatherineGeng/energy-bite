@@ -14,7 +14,6 @@ from src.database import (
     load_menus,
     save_app_image,
 )
-from src.theme import page_title
 
 
 def _check_admin() -> bool:
@@ -89,7 +88,6 @@ def _render_images_tab() -> None:
 
 def render() -> None:
     init_database()
-    page_title("", "后台管理")
 
     if not _check_admin():
         return

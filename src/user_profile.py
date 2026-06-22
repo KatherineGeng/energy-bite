@@ -29,6 +29,13 @@ def morning_greeting() -> str:
     return "早上好～新的一天开始了"
 
 
+def planning_prompt() -> str:
+    name = nickname()
+    if name:
+        return f"开始规划餐食，{name}今天想吃什么？"
+    return "开始规划餐食，今天想吃什么？"
+
+
 def render_onboarding() -> bool:
     """Return True when profile saved and app may continue."""
     st.markdown("### 欢迎使用简愈一人食")

@@ -27,7 +27,6 @@ from src.menu_calendar_ui import render_menu_calendar
 from src.query_nav import qp_first
 from src.session_hydrate import hydrate_today_state, menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text, encode_share_code
-from src.theme import page_title
 
 TAB_OPTIONS: list[tuple[str, str]] = [
     ("poster", "📸 生活志海报"),
@@ -73,12 +72,31 @@ def _render_menu_summary(date_str: str, menu_ids: list[str]) -> None:
 
 
 def _render_poster_tab() -> None:
+    st.markdown(
+        """
+        <style>
+        .eb-poster-default-hint {
+            font-size: 0.85rem !important;
+            color: #64748B;
+            text-align: center;
+            white-space: nowrap;
+            margin: 0 0 0.45rem;
+            line-height: 1.35;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     today = date.today()
     today_iso = today.isoformat()
     default_ids = _today_menu_ids()
 
     if default_ids:
-        st.caption("默认使用「今日菜单」中当前/已确认的就餐计划。")
+        st.markdown(
+            '<p class="eb-poster-default-hint">默认使用「今日菜单」中当前/已确认的就餐计划。</p>',
+            unsafe_allow_html=True,
+        )
     else:
         st.info("请先在「菜单」页确认今日就餐计划，或选择下方日期查看过往菜单。")
 
@@ -90,9 +108,11 @@ def _render_poster_tab() -> None:
             key="export_poster_date",
         )
     with col2:
-        if st.button("过往菜单海报", use_container_width=True, key="goto_past_menus"):
-            st.session_state.export_tab_key = "past"
-            st.rerun()
+        st.link_button(
+            "过往菜单海报",
+            url="?nav=export&export_tab=past",
+            use_container_width=True,
+        )
 
     date_str = selected_date.isoformat()
     if date_str == today_iso and default_ids:
@@ -380,8 +400,6 @@ def render() -> None:
     init_database()
     hydrate_today_state()
     menus = load_menus()
-
-    page_title("fa-share-nodes", "分享")
 
     if st.session_state.pop("review_complete", False):
         st.success("回顾已完成 · 上传实拍，生成今日全日生活志海报吧。")

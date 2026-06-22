@@ -74,11 +74,11 @@ if "export_tab_key" not in st.session_state:
 VALID_PAGES = {"morning", "night", "export", "admin"}
 apply_query_nav(VALID_PAGES)
 
+render_top_header(date.fromisoformat(st.session_state.today_date))
+
 if not profile_complete():
     render_onboarding()
     st.stop()
-
-render_top_header(date.fromisoformat(st.session_state.today_date))
 
 _page = st.session_state.current_page
 if _page == "morning":

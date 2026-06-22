@@ -31,11 +31,15 @@ from src.llm_client import has_api_key
 from src.coverage_widget import render_coverage_badge, render_meal_headline
 from src.nutrition import coverage_summary, menu_row_from_analysis
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
-from src.mobile_ui import render_meal_action_row, render_primary_action_link
+from src.mobile_ui import (
+    MENU_GEN_ICON,
+    render_meal_action_row,
+    render_primary_action_link,
+)
 from src.query_nav import pop_query_param
 from src.recommendation import format_ingredient_names, get_daily_menus
 from src.theme import section_title
-from src.user_profile import morning_greeting
+from src.user_profile import planning_prompt
 
 
 def _has_morning_context(today_iso: str) -> bool:
@@ -650,30 +654,35 @@ def render() -> None:
         st.rerun()
 
     if planning_phase:
-        st.info("开始规划餐食，今天想吃什么？")
-        st.caption(morning_greeting())
-
-        left = _library_gens_remaining()
-        if left > 0:
-            st.caption(f"今日前 {LIBRARY_GEN_MAX} 次从菜品库生成，还可库内生成 {left} 次。")
-        elif has_api_key():
-            st.caption("下一次生成将由 AI 创作全新菜品。")
-
-        render_primary_action_link("gen", "🍴", "生成菜单")
+        st.info(planning_prompt())
+        render_primary_action_link("gen", MENU_GEN_ICON, "生成菜单")
         return
 
     note = st.session_state.pop("last_gen_note", None)
-    if note:
-        if st.session_state.get("last_gen_source") == "api":
-            st.success(note)
-        else:
-            st.info(note)
-
+    gen_source = st.session_state.get("last_gen_source")
     left = _library_gens_remaining()
-    if left > 0:
-        st.caption(f"还可库内换套 {left} 次，之后将启用 AI 创作。")
-    elif has_api_key():
-        st.caption("下一次换套将由 AI 创作全新菜品。")
+
+    shuffle_hint = ""
+    if not locked:
+        if left > 0:
+            shuffle_hint = f"还可库内换套 {left} 次，之后将启用 AI 创作。"
+        elif has_api_key():
+            shuffle_hint = "下一次换套将由 AI 创作全新菜品。"
+
+    if note and shuffle_hint:
+        banner = f"{note} {shuffle_hint}"
+    elif note:
+        banner = note
+    elif shuffle_hint:
+        banner = shuffle_hint
+    else:
+        banner = None
+
+    if banner:
+        if gen_source == "api" and note:
+            st.success(banner)
+        else:
+            st.info(banner)
 
     if not locked:
         render_primary_action_link("shuffle", "🔀", "换套菜单")

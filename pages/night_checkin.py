@@ -18,11 +18,33 @@ from src.database import (
 )
 from src.session_hydrate import get_confirmed_plan, hydrate_today_state
 from src.theme import ACCENT, section_title
-from src.user_profile import morning_greeting
+from src.user_profile import morning_greeting, nickname
 
 SCORE_OPTIONS = [1, 2, 3, 4, 5]
-OPERATION_LABELS = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
-NPS_LABELS = {1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+
+
+def _score_btn(x: int) -> str:
+    return f"{x}分"
+
+
+def _ritual_line() -> str:
+    name = nickname()
+    if name:
+        return f"{name}度过了快乐健康的一天"
+    return "我度过了快乐健康的一天"
+
+
+def _review_scores_complete(menu_ids: list[str]) -> bool:
+    for menu_id in menu_ids:
+        if st.session_state.get(f"review_{menu_id}_operation") is None:
+            return False
+        if st.session_state.get(f"review_{menu_id}_nps") is None:
+            return False
+    if st.session_state.get("review_day_mood") is None:
+        return False
+    if st.session_state.get("review_day_energy") is None:
+        return False
+    return True
 
 
 def _inject_review_card_css() -> None:
@@ -43,6 +65,44 @@ def _inject_review_card_css() -> None:
             font-weight: 600;
             margin: 0;
             color: #1E293B;
+            line-height: 1.35;
+        }}
+        .eb-dish-header-row [data-testid="column"]:first-child {{
+            display: flex !important;
+            align-items: center !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type {{
+            align-items: center !important;
+            flex-wrap: nowrap !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type [data-testid="column"]:last-child {{
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 3.5rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stCheckbox {{
+            margin: 0 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stCheckbox label {{
+            font-size: 1rem !important;
+        }}
+        div[data-testid="stRadio"] > div {{
+            flex-wrap: nowrap !important;
+            display: flex !important;
+            flex-direction: row !important;
+            width: 100% !important;
+            gap: 0.2rem !important;
+        }}
+        div[data-testid="stRadio"] label {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            max-width: 20% !important;
+            padding: 0.35rem 0.1rem !important;
+            justify-content: center !important;
+            font-size: 1rem !important;
         }}
         .eb-dish-meta {{
             font-size: 1rem;
@@ -121,66 +181,76 @@ def _render_evening_section(confirmed: dict) -> None:
             continue
 
         with st.container(border=True):
-            st.markdown(
-                f'<p class="eb-dish-name">{menu_row["menu_name"]}</p>'
-                f'<p class="eb-dish-meta">{menu_row.get("meal_type", "")}</p>',
-                unsafe_allow_html=True,
-            )
+            meal_type = str(menu_row.get("meal_type", "")).strip()
+            dish_name = menu_row["menu_name"]
+            title_col, fav_col = st.columns([7, 2], gap="small")
+            with title_col:
+                st.markdown(
+                    f'<p class="eb-dish-name">{meal_type}：{dish_name}</p>',
+                    unsafe_allow_html=True,
+                )
+            with fav_col:
+                st.checkbox("收藏", key=f"review_{menu_id}_fav_dish")
 
-            st.markdown('<p class="eb-score-label">操作从容度 (1-5)</p>', unsafe_allow_html=True)
-            st.caption("1极其匆忙 → 5优雅享受")
+            st.markdown('<p class="eb-score-label">操作从容度 (1-5分)</p>', unsafe_allow_html=True)
+            st.caption("1分：极其匆忙 → 5分：优雅享受")
             st.radio(
                 "操作从容度",
                 options=SCORE_OPTIONS,
                 horizontal=True,
-                format_func=lambda x: OPERATION_LABELS[x],
+                format_func=_score_btn,
                 label_visibility="collapsed",
                 key=f"review_{menu_id}_operation",
-                index=2,
+                index=None,
             )
 
             st.markdown(
-                '<p class="eb-score-label">NPS意愿：这道菜我还想再吃一次 (1-5)</p>',
+                '<p class="eb-score-label">这道菜我还想再吃一次 (1-5分)</p>',
                 unsafe_allow_html=True,
             )
-            st.caption("1极不赞成 → 5极度赞成")
+            st.caption("1分：极不赞成 → 5分：极度赞成")
             st.radio(
                 "NPS意愿",
                 options=SCORE_OPTIONS,
                 horizontal=True,
-                format_func=lambda x: NPS_LABELS[x],
+                format_func=_score_btn,
                 label_visibility="collapsed",
                 key=f"review_{menu_id}_nps",
-                index=3,
+                index=None,
             )
-
-            st.checkbox("❤️ 收藏这道菜品", key=f"review_{menu_id}_fav_dish")
 
     st.checkbox("🌟 收藏今日整套全天菜单", key="review_fav_full_day")
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    st.markdown("**情绪状态 (1-5)**")
+    st.markdown("**情绪状态 (1-5分)**")
+    st.caption("1分：很低落 → 5分：很愉悦")
     day_mood = st.radio(
         "情绪状态",
         options=SCORE_OPTIONS,
         horizontal=True,
+        format_func=_score_btn,
         label_visibility="collapsed",
         key="review_day_mood",
-        index=2,
+        index=None,
     )
 
-    st.markdown("**精力水平 (1-5)**")
+    st.markdown("**精力水平 (1-5分)**")
+    st.caption("1分：很疲惫 → 5分：精力充沛")
     day_energy = st.radio(
         "精力水平",
         options=SCORE_OPTIONS,
         horizontal=True,
+        format_func=_score_btn,
         label_visibility="collapsed",
         key="review_day_energy",
-        index=2,
+        index=None,
     )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
+        if not _review_scores_complete(menu_ids):
+            st.warning("请完成所有评分后再提交。")
+            return
         log_ids: list[str] = []
         for menu_id in menu_ids:
             dish_fav = bool(st.session_state.get(f"review_{menu_id}_fav_dish", False))
@@ -210,7 +280,7 @@ def _render_evening_section(confirmed: dict) -> None:
         st.rerun()
 
     st.markdown(
-        '<p class="eb-ritual">我度过了快乐健康的一天</p>',
+        f'<p class="eb-ritual">{_ritual_line()}</p>',
         unsafe_allow_html=True,
     )
 

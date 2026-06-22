@@ -24,15 +24,20 @@ def _render_coverage_detail(menu_row: dict) -> None:
         st.caption("尚未分析或未匹配营养类")
 
 
-def render_coverage_badge(menu_row: dict, key: str) -> None:
-    """Summary line + popover detail."""
-    summary = coverage_summary(menu_row)
-    meta_col, pop_col = st.columns([5, 2], gap="small")
+def _render_coverage_inline(menu_row: dict, *, line: str) -> None:
+    """Meta text with popover button immediately after on the same row."""
+    meta_col, pop_col = st.columns([8, 2], gap="small")
     with meta_col:
-        st.caption(f"营养覆盖 {summary}")
+        st.markdown(f'<span class="eb-meal-meta-inline">{line}</span>', unsafe_allow_html=True)
     with pop_col:
-        with st.popover("i 点击查看"):
+        with st.popover("点击查看"):
             _render_coverage_detail(menu_row)
+
+
+def render_coverage_badge(menu_row: dict, key: str) -> None:
+    del key
+    summary = coverage_summary(menu_row)
+    _render_coverage_inline(menu_row, line=f"营养覆盖 {summary}")
 
 
 def render_meal_headline(
@@ -44,7 +49,7 @@ def render_meal_headline(
     widget_key: str,
     ai_fresh: bool = False,
 ) -> None:
-    del locked, widget_key  # prep time always shown; keys kept for call sites
+    del locked, widget_key
     tags_str = str(row.get("energy_tags", "")).replace("·", " · ")
     summary = coverage_summary(row)
     ai_tag = " · `AI新菜`" if ai_fresh else ""
@@ -55,9 +60,4 @@ def render_meal_headline(
     else:
         st.markdown(f"· **{row['menu_name']}**{ai_tag}")
 
-    meta_col, pop_col = st.columns([6, 2], gap="small")
-    with meta_col:
-        st.caption(f"{tags_str} · {prep}营养覆盖 {summary}")
-    with pop_col:
-        with st.popover("i 点击查看"):
-            _render_coverage_detail(row)
+    _render_coverage_inline(row, line=f"{tags_str} · {prep}营养覆盖 {summary}")
