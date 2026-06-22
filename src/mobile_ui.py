@@ -271,13 +271,20 @@ def render_action_row(
     st.markdown(f'<div class="eb-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
+def _on_nav(page_id: str) -> None:
+    st.session_state.current_page = page_id
+
+
 def render_bottom_nav(current_page: str | None = None) -> None:
     page = current_page or st.session_state.get("current_page", "morning")
-    links: list[str] = []
-    for page_id, icon, label in NAV_ITEMS:
-        active = " active" if page_id == page else ""
-        links.append(
-            f'<a class="eb-nav-link{active}" href="?nav={page_id}">'
-            f'<span class="eb-nav-icon">{icon}</span><span>{label}</span></a>'
-        )
-    st.markdown(f'<nav class="eb-bottom-nav">{"".join(links)}</nav>', unsafe_allow_html=True)
+    cols = st.columns(len(NAV_ITEMS))
+    for col, (page_id, icon, label) in zip(cols, NAV_ITEMS):
+        with col:
+            st.button(
+                f"{icon} {label}",
+                key=f"bottom_nav_{page_id}",
+                use_container_width=True,
+                type="primary" if page_id == page else "secondary",
+                on_click=_on_nav,
+                args=(page_id,),
+            )
