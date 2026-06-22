@@ -57,14 +57,25 @@ def inject_mobile_css() -> None:
             width: 100% !important;
             max-width: 100% !important;
         }}
-        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {{
+        .eb-bottom-nav {{
+            position: fixed !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 999999 !important;
+            background: rgba(249, 248, 246, 0.98) !important;
+            border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
+            padding: 0.38rem max(0.65rem, env(safe-area-inset-left)) calc(0.42rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
+            box-shadow: 0 -4px 16px rgba(30, 41, 59, 0.06) !important;
+        }}
+        [data-testid="stHorizontalBlock"] {{
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 0.35rem !important;
             width: 100% !important;
         }}
-        div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
             flex: 1 1 0 !important;
             width: auto !important;
             min-width: 0 !important;
@@ -183,20 +194,6 @@ def inject_mobile_css() -> None:
             margin: 0 !important;
             flex-shrink: 0 !important;
         }}
-        .eb-bottom-nav-bar {{
-            position: fixed !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            z-index: 999999 !important;
-            background: rgba(249, 248, 246, 0.98) !important;
-            border-top: 1px solid rgba(141, 163, 153, 0.28) !important;
-            padding: 0.38rem max(0.65rem, env(safe-area-inset-left)) calc(0.42rem + env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right)) !important;
-            box-shadow: 0 -4px 16px rgba(30, 41, 59, 0.06) !important;
-        }}
-        .eb-bottom-nav-bar [data-testid="stHorizontalBlock"] {{
-            gap: 0.35rem !important;
-        }}
         .eb-nav-link.active {{
             background: rgba(141, 163, 153, 0.2) !important;
             color: {ACCENT} !important;
@@ -270,22 +267,13 @@ def render_action_row(
     st.markdown(f'<div class="eb-action-row">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
-def _on_nav(page_id: str) -> None:
-    st.session_state.current_page = page_id
-
-
 def render_bottom_nav(current_page: str | None = None) -> None:
     page = current_page or st.session_state.get("current_page", "morning")
-    st.markdown('<div class="eb-bottom-nav-bar">', unsafe_allow_html=True)
-    cols = st.columns(len(NAV_ITEMS))
-    for col, (page_id, icon, label) in zip(cols, NAV_ITEMS):
-        with col:
-            st.button(
-                f"{icon} {label}",
-                key=f"bottom_nav_{page_id}",
-                use_container_width=True,
-                type="primary" if page_id == page else "secondary",
-                on_click=_on_nav,
-                args=(page_id,),
-            )
-    st.markdown("</div>", unsafe_allow_html=True)
+    parts: list[str] = []
+    for page_id, icon, label in NAV_ITEMS:
+        active = " active" if page_id == page else ""
+        parts.append(
+            f'<a class="eb-nav-link{active}" href="?nav={page_id}">'
+            f'<span class="eb-nav-icon">{icon}</span><span>{label}</span></a>'
+        )
+    st.markdown(f'<div class="eb-bottom-nav">{"".join(parts)}</div>', unsafe_allow_html=True)
