@@ -73,8 +73,6 @@ if "export_tab_key" not in st.session_state:
 VALID_PAGES = {"morning", "night", "export"}
 apply_query_nav(VALID_PAGES)
 
-render_bottom_nav()
-
 render_top_header(date.fromisoformat(st.session_state.today_date))
 
 _page = st.session_state.current_page
@@ -90,3 +88,5 @@ else:
     from pages import export_poster
 
     export_poster.render()
+
+render_bottom_nav()

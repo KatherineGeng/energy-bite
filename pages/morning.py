@@ -657,7 +657,8 @@ def render() -> None:
             key="btn_gen_menu",
             disabled=not has_context,
         ):
-            _run_generate(sleep, load, int(meal_count))
+            with st.spinner("正在生成菜单…"):
+                _run_generate(sleep, load, int(meal_count))
             st.rerun()
         return
 
@@ -682,7 +683,8 @@ def render() -> None:
             key="btn_shuffle_menu",
             disabled=not has_context,
         ):
-            _run_shuffle(sleep, load, int(meal_count))
+            with st.spinner("正在换套菜单…"):
+                _run_shuffle(sleep, load, int(meal_count))
             st.rerun()
     elif locked:
         st.caption("如需修改菜品，请先重新编辑。")
