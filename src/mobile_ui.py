@@ -128,7 +128,7 @@ def render_top_header(today: str, favorited_count: int) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        f'<p class="eb-version-badge">版本 {APP_VERSION} · 布局:HTML横排 · 图标:GitHub PNG</p>',
+        f'<p class="eb-version-badge">版本 {APP_VERSION} · 图标:同源PNG</p>',
         unsafe_allow_html=True,
     )
     st.markdown(

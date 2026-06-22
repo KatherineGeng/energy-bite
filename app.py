@@ -18,7 +18,7 @@ from pages import export_poster, morning, night_checkin
 
 st.set_page_config(
     page_title=f"简愈一人食 {APP_VERSION}",
-    page_icon="apple-touch-icon.png",
+    page_icon="static/apple-touch-icon.png",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
