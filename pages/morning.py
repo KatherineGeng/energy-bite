@@ -34,7 +34,6 @@ from src.nutrition import coverage_summary, menu_row_from_analysis
 from src.nutrition_api import analyze_ingredients, parse_nutrition_from_description
 from src.mobile_ui import (
     MENU_GEN_ICON,
-    render_meal_action_row,
     render_primary_action_link,
 )
 from src.nav_params import append_nav_params
@@ -150,16 +149,13 @@ def _get_morning_inputs() -> dict:
 
 
 def _on_remove_dish(meal_type: str, menu_id: str) -> None:
-    plan = dict(st.session_state.get("meal_plan") or _empty_meal_plan())
+    plan = {meal: list(ids) for meal, ids in _ensure_meal_plan().items()}
     plan[meal_type] = [mid for mid in plan.get(meal_type, []) if mid != menu_id]
-    st.session_state.meal_plan = plan
-    st.session_state.current_day_menus = _flatten_plan(plan)
-    st.session_state.today_recommendations = st.session_state.current_day_menus
     st.session_state.menu_locked = False
     st.session_state.final_daily_list = []
     st.session_state.final_meal_plan = _empty_meal_plan()
     st.session_state.eb_add_ui = None
-    _persist_plan(plan, confirmed=False)
+    _sync_draft_from_plan(plan)
 
 
 def _on_open_manual(meal_type: str) -> None:
@@ -521,9 +517,12 @@ def _render_add_panel(meal_type: str) -> None:
     ranked = get_menus_by_pick_frequency()
     if ranked.empty:
         st.info("菜单库暂无菜品")
-        _render_link_row([
-            (_page_query_href(ui_act="cancel_add"), "关闭", ""),
-        ])
+        st.button(
+            "关闭",
+            key=f"lib_close_empty_{meal_type}",
+            use_container_width=True,
+            on_click=_close_add_panel,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -542,9 +541,12 @@ def _render_add_panel(meal_type: str) -> None:
 
     if not options:
         st.info("该餐次已包含菜单库中的全部菜品")
-        _render_link_row([
-            (_page_query_href(ui_act="cancel_add"), "关闭", ""),
-        ])
+        st.button(
+            "关闭",
+            key=f"lib_close_full_{meal_type}",
+            use_container_width=True,
+            on_click=_close_add_panel,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -560,9 +562,12 @@ def _render_add_panel(meal_type: str) -> None:
             _close_add_panel()
             st.rerun()
 
-    _render_link_row([
-        (_page_query_href(ui_act="cancel_add"), "取消", ""),
-    ])
+    st.button(
+        "取消",
+        key=f"lib_cancel_{meal_type}",
+        use_container_width=True,
+        on_click=_close_add_panel,
+    )
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -611,7 +616,7 @@ def _render_meal_toolbar(
     show_library: bool = False,
     key_suffix: str = "row",
 ) -> None:
-    del key_suffix
+    """Streamlit buttons — no full-page reload (keeps session + manual dishes)."""
     items: list[tuple[str, str, str | None]] = []
     if show_remove and menu_id:
         items.append(("remove", "移除", menu_id))
@@ -619,8 +624,36 @@ def _render_meal_toolbar(
         items.append(("manual", "手工添加", None))
     if show_library:
         items.append(("library", "菜单库添加", None))
-    if items:
-        render_meal_action_row(meal_type, items)
+    if not items:
+        return
+
+    cols = st.columns(len(items))
+    for col, (act, label, mid) in zip(cols, items):
+        with col:
+            if act == "remove" and mid:
+                st.button(
+                    label,
+                    key=f"mt_{act}_{meal_type}_{mid}_{key_suffix}",
+                    use_container_width=True,
+                    on_click=_on_remove_dish,
+                    args=(meal_type, mid),
+                )
+            elif act == "manual":
+                st.button(
+                    label,
+                    key=f"mt_{act}_{meal_type}_{key_suffix}",
+                    use_container_width=True,
+                    on_click=_on_open_manual,
+                    args=(meal_type,),
+                )
+            elif act == "library":
+                st.button(
+                    label,
+                    key=f"mt_{act}_{meal_type}_{key_suffix}",
+                    use_container_width=True,
+                    on_click=_on_open_library,
+                    args=(meal_type,),
+                )
 
 
 def _render_meal_sections(
@@ -650,6 +683,16 @@ def _render_meal_sections(
             for idx, menu_id in enumerate(menu_ids):
                 row = get_menu_by_id(menu_id)
                 if not row:
+                    if idx > 0:
+                        st.divider()
+                    st.markdown(f"**{meal_type}** · `{menu_id}`（库内未找到，可移除）")
+                    if not locked:
+                        _render_meal_toolbar(
+                            meal_type,
+                            menu_id=menu_id,
+                            show_remove=True,
+                            key_suffix=f"orphan_{menu_id}",
+                        )
                     continue
 
                 if idx > 0:
