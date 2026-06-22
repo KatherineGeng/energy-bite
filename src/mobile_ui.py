@@ -253,7 +253,7 @@ def inject_mobile_css() -> None:
             text-align: center;
             color: {TEXT};
             margin: 0 0 0.15rem;
-            font-size: 1.55rem;
+            font-size: 1.85rem;
             font-weight: 600;
             line-height: 1.35;
             white-space: nowrap;

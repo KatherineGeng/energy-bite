@@ -14,6 +14,13 @@ from src.database import (
     load_menus,
     save_app_image,
 )
+from src.profile_bootstrap import (
+    admin_remember_token,
+    clear_admin_from_browser,
+    persist_admin_to_browser,
+    restore_admin_from_browser,
+)
+from src.query_nav import qp_first
 
 
 def _check_admin() -> bool:
@@ -24,12 +31,20 @@ def _check_admin() -> bool:
     if not pwd:
         st.warning("未配置 ADMIN_PASSWORD，请在 Streamlit Secrets 中设置。")
         return False
+
+    remember = admin_remember_token(str(pwd))
+    if qp_first("adm") == remember:
+        st.session_state.admin_authed = True
+
+    restore_admin_from_browser()
+
     if st.session_state.get("admin_authed"):
         return True
     entered = st.text_input("管理员密码", type="password", key="admin_pwd_input")
     if st.button("登录", type="primary", key="admin_login"):
         if entered == pwd:
             st.session_state.admin_authed = True
+            persist_admin_to_browser(remember)
             st.rerun()
         else:
             st.error("密码错误")
@@ -109,5 +124,6 @@ def render() -> None:
 
     if st.button("退出管理", key="admin_logout"):
         st.session_state.admin_authed = False
+        clear_admin_from_browser()
         st.session_state.current_page = "morning"
         st.rerun()

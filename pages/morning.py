@@ -375,23 +375,56 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
         if analysis.get("unmatched"):
             st.caption("未入库食材：" + "、".join(analysis["unmatched"]))
 
-    _render_link_row([
-        (
-            _page_query_href(ui_act="confirm_new", meal=meal_type),
-            "确认入库并加入本餐",
-            "primary",
-        ),
-        (
-            _page_query_href(ui_act="back_search", meal=meal_type),
-            "返回搜索",
-            "",
-        ),
-        (
-            _page_query_href(ui_act="cancel_add"),
-            "取消",
-            "",
-        ),
-    ])
+    _render_panel_buttons(
+        meal_type,
+        primary=("确认入库并加入本餐", _try_confirm_new_dish),
+        secondary=("返回搜索", _on_back_manual_search),
+        show_cancel=True,
+    )
+
+
+def _render_panel_buttons(
+    meal_type: str,
+    *,
+    primary: tuple[str, object] | None = None,
+    secondary: tuple[str, object] | None = None,
+    show_cancel: bool = True,
+    key_prefix: str = "panel",
+) -> None:
+    """In-panel actions via Streamlit buttons (avoid full-page reload)."""
+    cols = st.columns(3 if secondary else 2)
+    col_idx = 0
+    if primary:
+        label, handler = primary
+        with cols[col_idx]:
+            st.button(
+                label,
+                type="primary",
+                use_container_width=True,
+                key=f"{key_prefix}_pri_{meal_type}",
+                on_click=handler,
+                args=(meal_type,),
+            )
+        col_idx += 1
+    if secondary:
+        label, handler = secondary
+        with cols[col_idx]:
+            st.button(
+                label,
+                use_container_width=True,
+                key=f"{key_prefix}_sec_{meal_type}",
+                on_click=handler,
+                args=(meal_type,),
+            )
+        col_idx += 1
+    if show_cancel:
+        with cols[col_idx]:
+            st.button(
+                "取消",
+                use_container_width=True,
+                key=f"{key_prefix}_cancel_{meal_type}",
+                on_click=_close_add_panel,
+            )
 
 
 def _render_manual_add(meal_type: str, ui: dict) -> None:
@@ -431,23 +464,20 @@ def _render_manual_add(meal_type: str, ui: dict) -> None:
             st.caption("库内暂无相似名称，可作为新菜品录入。")
 
     if query:
-        _render_link_row([
-            (
-                _page_query_href(ui_act="new_dish", meal=meal_type),
-                "确认为新菜品",
-                "primary",
-            ),
-            (
-                _page_query_href(ui_act="cancel_add"),
-                "取消",
-                "",
-            ),
-        ])
+        _render_panel_buttons(
+            meal_type,
+            primary=("确认为新菜品", _on_start_new_dish),
+            show_cancel=True,
+            key_prefix="new_dish",
+        )
     else:
         st.caption("请先输入菜品名称。")
-        _render_link_row([
-            (_page_query_href(ui_act="cancel_add"), "取消", ""),
-        ])
+        st.button(
+            "取消",
+            use_container_width=True,
+            key=f"cancel_empty_search_{meal_type}",
+            on_click=_close_add_panel,
+        )
 
 
 def _render_add_panel(meal_type: str) -> None:
