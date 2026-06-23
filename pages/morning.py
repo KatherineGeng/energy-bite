@@ -29,7 +29,8 @@ from src.meal_plan_utils import (
     flatten_plan,
     plan_from_menu_ids,
 )
-from src.session_hydrate import hydrate_today_state
+from src.favorite_recommend import recent_favorite_menu_candidates
+from src.session_hydrate import get_confirmed_plan, hydrate_today_state
 from src.llm_client import has_api_key
 from src.coverage_widget import render_daily_coverage_table
 from src.nutrition import coverage_summary
@@ -357,6 +358,52 @@ def _fetch_daily_menus(
     else:
         st.session_state.last_gen_note = "API 不可用或失败，已使用菜品库。"
     _store_recommendations(recs)
+
+
+def _confirmed_menu_ids_today(today_iso: str) -> list[str]:
+    confirmed = get_confirmed_plan(today_iso)
+    if confirmed and confirmed.get("menu_ids"):
+        return list(confirmed["menu_ids"])
+    return []
+
+
+def _favorite_menu_candidates(today_iso: str) -> list[dict]:
+    return recent_favorite_menu_candidates(
+        within_days=5,
+        exclude_menu_ids=_confirmed_menu_ids_today(today_iso),
+    )
+
+
+def _apply_favorite_menu(menu_ids: list[str], *, meal_count: int) -> bool:
+    plan = _plan_from_menu_ids(menu_ids)
+    slots = _active_meal_slots(meal_count)
+    trimmed = {slot: list(plan.get(slot, [])) for slot in slots}
+    if not _flatten_plan(trimmed):
+        return False
+    _sync_draft_from_plan(trimmed)
+    st.session_state.today_menus = []
+    st.session_state.last_gen_source = "favorite"
+    st.session_state.last_gen_note = "来自收藏菜单推荐"
+    st.session_state.ai_fresh_menu_ids = []
+    return True
+
+
+def _try_auto_favorite_recommendation(today_iso: str, meal_count: int) -> bool:
+    if st.session_state.get("eb_fav_auto_date") == today_iso:
+        return False
+    st.session_state.eb_fav_auto_date = today_iso
+    candidates = _favorite_menu_candidates(today_iso)
+    if not candidates:
+        return False
+    return _apply_favorite_menu(candidates[0]["menu_ids"], meal_count=meal_count)
+
+
+def _run_recommend_menu(sleep: str, load: str, meal_count: int, today_iso: str) -> None:
+    candidates = _favorite_menu_candidates(today_iso)
+    if candidates:
+        _apply_favorite_menu(candidates[0]["menu_ids"], meal_count=meal_count)
+        return
+    _fetch_daily_menus(sleep, load, int(meal_count), shuffle=False)
 
 
 def _run_generate(sleep: str, load: str, meal_count: int) -> None:
@@ -775,9 +822,13 @@ def render() -> None:
     load = morning.get("load", st.session_state.get("morning_load", "中等"))
 
     if legacy_act == "gen" and planning_phase and not locked:
-        with st.spinner("正在生成菜单…"):
-            _run_generate(sleep, load, int(meal_count))
+        with st.spinner("正在推荐菜单…"):
+            _run_recommend_menu(sleep, load, int(meal_count), today_iso)
         st.rerun()
+
+    if planning_phase and not locked:
+        if _try_auto_favorite_recommendation(today_iso, int(meal_count)):
+            st.rerun()
 
     if legacy_act == "shuffle" and not planning_phase and not locked:
         with st.spinner("正在换套菜单…"):
@@ -786,7 +837,7 @@ def render() -> None:
 
     if planning_phase:
         st.info(planning_prompt())
-        render_primary_action_link("gen", MENU_GEN_ICON, "生成菜单")
+        render_primary_action_link("gen", MENU_GEN_ICON, "推荐菜单")
         return
 
     note = st.session_state.pop("last_gen_note", None)
@@ -810,7 +861,7 @@ def render() -> None:
         banner = None
 
     if banner:
-        if gen_source == "api" and note:
+        if gen_source in ("api", "favorite") and note:
             st.success(banner)
         else:
             st.info(banner)
@@ -820,7 +871,8 @@ def render() -> None:
     elif locked:
         st.caption("如需修改菜品，请点底部「重新编辑」。")
 
-    section_title("fa-clipboard-list", "今日菜单")
+    menu_section = "推荐菜单" if gen_source == "favorite" and not locked else "今日菜单"
+    section_title("fa-clipboard-list", menu_section)
 
     if locked:
         fp = st.session_state.get("final_meal_plan") or {}

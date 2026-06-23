@@ -13,6 +13,31 @@ from src.plan_bootstrap import plan_from_query_token
 from src.query_nav import clear_query_key, qp_first
 
 
+def sync_session_date() -> str:
+    """Always align session to the real calendar day (fixes stale date after midnight)."""
+    today = date.today().isoformat()
+    prev = st.session_state.get("today_date")
+    st.session_state.today_date = today
+    if prev and prev != today:
+        st.session_state.pop("_hydrated_date", None)
+        st.session_state.pop("_hydrated_user", None)
+        st.session_state.pop("morning_context_loaded", None)
+        st.session_state.pop("eb_fav_auto_date", None)
+        if st.session_state.get("menu_gen_date") != today:
+            st.session_state.menu_gen_date = today
+            st.session_state.menu_gen_count = 0
+        st.session_state.meal_plan = empty_meal_plan()
+        st.session_state.current_day_menus = []
+        st.session_state.today_recommendations = []
+        st.session_state.today_menus = []
+        st.session_state.menu_locked = False
+        st.session_state.final_meal_plan = empty_meal_plan()
+        st.session_state.final_daily_list = []
+        st.session_state.eb_plan_snapshots = {}
+        st.session_state.eb_add_ui = None
+    return today
+
+
 def clear_menu_session_state() -> None:
     """Reset menu-related session when user profile is not ready."""
     st.session_state.meal_plan = empty_meal_plan()

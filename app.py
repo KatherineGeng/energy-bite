@@ -13,7 +13,7 @@ from src.database import init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
-from src.session_hydrate import clear_menu_session_state, hydrate_today_state
+from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
 from src.client_profile import sync_profile_from_url
 from src.profile_bootstrap import restore_profile_from_browser
 from src.query_nav import qp_first
@@ -32,8 +32,7 @@ inject_pwa_head()
 inject_theme_assets()
 inject_mobile_css()
 
-if "today_date" not in st.session_state:
-    st.session_state.today_date = date.today().isoformat()
+sync_session_date()
 if "morning_inputs" not in st.session_state:
     st.session_state.morning_inputs = {}
 if "today_recommendations" not in st.session_state:
@@ -92,7 +91,7 @@ restore_menus_from_browser()
 _page = st.session_state.current_page
 _is_admin = _page == "admin" or qp_first("nav") == "admin"
 
-render_top_header(date.fromisoformat(st.session_state.today_date))
+render_top_header(date.today())
 
 if not _is_admin and not profile_complete():
     clear_menu_session_state()
