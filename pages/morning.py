@@ -686,13 +686,13 @@ def _render_meal_sections(
         with st.container(border=True):
             if not menu_ids:
                 st.caption(f"{meal_type} · 暂无菜品")
-                _render_meal_toolbar(
-                    meal_type,
-                    show_manual=True,
-                    show_library=True,
-                    key_suffix="empty",
-                )
                 if not locked:
+                    _render_meal_toolbar(
+                        meal_type,
+                        show_manual=True,
+                        show_library=True,
+                        key_suffix="empty",
+                    )
                     _render_add_panel(meal_type)
                 continue
 

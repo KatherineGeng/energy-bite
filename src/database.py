@@ -293,6 +293,12 @@ def load_menus() -> pd.DataFrame:
 
 
 def load_logs() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_logs
+
+        return pg_load_logs()
     df = _read_csv(LOG_FILE, LOG_COLUMNS)
     if df.empty:
         return df
@@ -303,6 +309,12 @@ def load_logs() -> pd.DataFrame:
 
 
 def load_weights() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_weights
+
+        return pg_load_weights()
     df = _read_csv(WEIGHTS_FILE, WEIGHTS_COLUMNS)
     if df.empty:
         return df
@@ -314,6 +326,13 @@ def load_weights() -> pd.DataFrame:
 
 
 def save_weights(df: pd.DataFrame) -> None:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_save_weights
+
+        pg_save_weights(df)
+        return
     out = df.copy()
     out["is_favorited"] = out["is_favorited"].map(lambda x: "true" if x else "false")
     _write_csv(out[WEIGHTS_COLUMNS], WEIGHTS_FILE)
@@ -357,6 +376,24 @@ def append_log(
     ]:
         if not SCORE_MIN <= score <= SCORE_MAX:
             raise ValueError(f"{name} must be between {SCORE_MIN} and {SCORE_MAX}")
+
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_append_log
+
+        return pg_append_log(
+            date,
+            menu_id,
+            nps_score=nps_score,
+            operation_score=operation_score,
+            mood_score=mood_score,
+            energy_score=energy_score,
+            is_favorited=is_favorited,
+            sleep_quality=sleep_quality,
+            brain_body_load=brain_body_load,
+            meal_count=meal_count,
+        )
 
     df = load_logs()
     same_day = df[df["date"] == date]
@@ -546,6 +583,10 @@ def record_menu_archive(
     is_imported: bool = False,
 ) -> None:
     """Unified menu history — share / favorite / import flags on one row."""
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        return
     clean_ids = [mid.strip() for mid in menu_ids if mid and str(mid).strip()]
     if not clean_ids:
         return
@@ -674,9 +715,8 @@ def search_archive_menu_ids(keyword: str) -> list[str]:
 def dates_with_menus() -> set[str]:
     """All dates that have any saved menu for the current user."""
     from src.client_profile import plan_user_key
-    from src.meal_plan_dates import meal_plan_date_markers
 
-    return set(meal_plan_date_markers(plan_user_key()).keys())
+    return set(meal_plan_markers_for_user(plan_user_key() or "").keys())
 
 
 def get_log_dates() -> set[str]:
@@ -858,6 +898,12 @@ def delete_app_image(image_id: str) -> None:
 
 
 def load_favorites_dishes() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_favorites_dishes
+
+        return pg_load_favorites_dishes()
     legacy = _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS)
     archive = load_menu_archive()
     rows: list[dict[str, str]] = []
@@ -896,6 +942,12 @@ def load_favorites_dishes() -> pd.DataFrame:
 
 
 def load_favorites_menus() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_favorites_menus
+
+        return pg_load_favorites_menus()
     legacy = _read_csv(FAVORITES_MENUS_FILE, FAVORITES_MENUS_COLUMNS)
     archive = load_menu_archive()
     rows: list[dict[str, str]] = []
@@ -935,6 +987,13 @@ def load_favorites_menus() -> pd.DataFrame:
 
 
 def save_favorite_dish(menu_id: str, date: str) -> None:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_save_favorite_dish
+
+        pg_save_favorite_dish(menu_id, date)
+        return
     df = load_favorites_dishes()
     if not df.empty and ((df["menu_id"] == menu_id) & (df["date"] == date)).any():
         return
@@ -955,6 +1014,13 @@ def save_favorite_dish(menu_id: str, date: str) -> None:
 
 
 def remove_favorite_dish(menu_id: str, date: str) -> None:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_remove_favorite_dish
+
+        pg_remove_favorite_dish(menu_id, date)
+        return
     legacy = _read_csv(FAVORITES_DISHES_FILE, FAVORITES_DISHES_COLUMNS)
     if not legacy.empty:
         legacy = legacy[~((legacy["menu_id"] == menu_id) & (legacy["date"] == date))]
@@ -969,6 +1035,13 @@ def remove_favorite_dish(menu_id: str, date: str) -> None:
 
 
 def save_favorite_menu_set(menu_ids: list[str], date: str) -> None:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_save_favorite_menu_set
+
+        pg_save_favorite_menu_set(menu_ids, date)
+        return
     df = load_favorites_menus()
     ids_text = "|".join(menu_ids)
     existing = df[(df["date"] == date) & (df["menu_ids"] == ids_text)] if not df.empty else pd.DataFrame()
@@ -1368,8 +1441,28 @@ def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
     }
 
 
+def meal_plan_markers_for_user(user_key: str = "") -> dict[str, str]:
+    """Return {iso_date: confirmed|draft} for calendar markers."""
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_meal_plan_markers
+
+        return pg_meal_plan_markers()
+    from src.meal_plan_dates import meal_plan_date_markers
+
+    return meal_plan_date_markers(user_key)
+
+
 def list_meal_plan_dates(*, confirmed_only: bool = False) -> list[str]:
     from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        markers = meal_plan_markers_for_user(plan_user_key() or "")
+        if confirmed_only:
+            markers = {d: s for d, s in markers.items() if s == "confirmed"}
+        return sorted(markers.keys(), reverse=True)
 
     user_key = plan_user_key()
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)

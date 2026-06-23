@@ -8,6 +8,13 @@ from src.constants import DAILY_PLAN_FILE
 
 def meal_plan_date_markers(user_key: str = "") -> dict[str, str]:
     """Return {iso_date: status} for dates that have saved menus (optionally scoped by user)."""
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_meal_plan_markers
+
+        return pg_meal_plan_markers()
+
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     markers: dict[str, str] = {}
     uk = str(user_key or "").strip()

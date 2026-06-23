@@ -117,8 +117,6 @@ def hydrate_today_state() -> None:
     if (
         st.session_state.get("_hydrated_date") == today
         and st.session_state.get("_hydrated_user") == user_key
-        and st.session_state.get("meal_plan")
-        and any(st.session_state.meal_plan.get(m) for m in ("早餐", "午餐", "晚餐"))
     ):
         ensure_today_plan_persisted()
         return

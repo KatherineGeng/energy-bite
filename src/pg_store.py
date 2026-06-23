@@ -361,3 +361,265 @@ def pg_load_all_user_profiles() -> pd.DataFrame:
     df = pd.DataFrame([dict(r) for r in rows])
     df["client_ip"] = ""
     return df[USER_PROFILE_COLUMNS]
+
+
+def pg_meal_plan_markers() -> dict[str, str]:
+    uid = current_user_id()
+    if not uid:
+        return {}
+    markers: dict[str, str] = {}
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT plan_date::text AS plan_date, confirmed, breakfast, lunch, dinner
+            FROM daily_meal_plans
+            WHERE user_id = %s::uuid
+            """,
+            (uid,),
+        )
+        for row in cur.fetchall():
+            day = str(row["plan_date"])
+            ids = (
+                _parse_plan_column(row.get("breakfast", ""))
+                + _parse_plan_column(row.get("lunch", ""))
+                + _parse_plan_column(row.get("dinner", ""))
+            )
+            if not ids:
+                continue
+            markers[day] = "confirmed" if row.get("confirmed") else "draft"
+    return markers
+
+
+def pg_load_favorites_dishes() -> pd.DataFrame:
+    from src.database import FAVORITES_DISHES_COLUMNS
+
+    uid = current_user_id()
+    if not uid:
+        return pd.DataFrame(columns=FAVORITES_DISHES_COLUMNS)
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT fav_id, menu_id, fav_date::text AS date, saved_at::text AS saved_at
+            FROM favorite_dishes
+            WHERE user_id = %s::uuid
+            ORDER BY saved_at
+            """,
+            (uid,),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame(columns=FAVORITES_DISHES_COLUMNS)
+    return pd.DataFrame([dict(r) for r in rows], columns=FAVORITES_DISHES_COLUMNS)
+
+
+def pg_load_favorites_menus() -> pd.DataFrame:
+    from src.database import FAVORITES_MENUS_COLUMNS
+
+    uid = current_user_id()
+    if not uid:
+        return pd.DataFrame(columns=FAVORITES_MENUS_COLUMNS)
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT fav_id, fav_date::text AS date, menu_ids, saved_at::text AS saved_at
+            FROM favorite_menus
+            WHERE user_id = %s::uuid
+            ORDER BY saved_at
+            """,
+            (uid,),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame(columns=FAVORITES_MENUS_COLUMNS)
+    return pd.DataFrame([dict(r) for r in rows], columns=FAVORITES_MENUS_COLUMNS)
+
+
+def pg_save_favorite_dish(menu_id: str, date: str) -> None:
+    uid = current_user_id()
+    if not uid:
+        return
+    fav_id = f"FD_{date.replace('-', '')}_{menu_id}"
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO favorite_dishes (fav_id, user_id, menu_id, fav_date, saved_at)
+            VALUES (%s, %s::uuid, %s, %s::date, NOW())
+            ON CONFLICT (fav_id) DO NOTHING
+            """,
+            (fav_id, uid, menu_id, date),
+        )
+
+
+def pg_remove_favorite_dish(menu_id: str, date: str) -> None:
+    uid = current_user_id()
+    if not uid:
+        return
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM favorite_dishes
+            WHERE user_id = %s::uuid AND menu_id = %s AND fav_date = %s::date
+            """,
+            (uid, menu_id, date),
+        )
+
+
+def pg_save_favorite_menu_set(menu_ids: list[str], date: str) -> None:
+    uid = current_user_id()
+    if not uid:
+        return
+    ids_text = "|".join(menu_ids)
+    fav_id = f"FM_{date.replace('-', '')}_{abs(hash(ids_text)) % 1000:03d}"
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1 FROM favorite_menus
+            WHERE user_id = %s::uuid AND fav_date = %s::date AND menu_ids = %s
+            """,
+            (uid, date, ids_text),
+        )
+        if cur.fetchone():
+            return
+        cur.execute(
+            """
+            INSERT INTO favorite_menus (fav_id, user_id, fav_date, menu_ids, saved_at)
+            VALUES (%s, %s::uuid, %s::date, %s, NOW())
+            """,
+            (fav_id, uid, date, ids_text),
+        )
+
+
+def pg_append_log(
+    day: str,
+    menu_id: str,
+    *,
+    nps_score: int,
+    operation_score: int,
+    mood_score: int,
+    energy_score: int,
+    is_favorited: bool,
+    sleep_quality: str = "",
+    brain_body_load: str = "",
+    meal_count: int | None = None,
+) -> str:
+    uid = current_user_id()
+    if not uid:
+        return ""
+    with pg_cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM review_logs WHERE user_id = %s::uuid AND log_date = %s::date",
+            (uid, day),
+        )
+        seq = int(cur.fetchone()["n"]) + 1
+        log_id = f"LOG_{day.replace('-', '')}_{seq:03d}"
+        cur.execute(
+            """
+            INSERT INTO review_logs (
+                log_id, user_id, log_date, menu_id, taste_score, operation_score,
+                mood_score, energy_score, is_favorited, sleep_quality, brain_body_load, meal_count
+            ) VALUES (%s, %s::uuid, %s::date, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                log_id,
+                uid,
+                day,
+                menu_id,
+                nps_score,
+                operation_score,
+                mood_score,
+                energy_score,
+                is_favorited,
+                sleep_quality or "",
+                brain_body_load or "",
+                meal_count,
+            ),
+        )
+    return log_id
+
+
+def pg_load_logs() -> pd.DataFrame:
+    from src.database import LOG_COLUMNS
+
+    uid = current_user_id()
+    if not uid:
+        return pd.DataFrame(columns=LOG_COLUMNS)
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT log_id, log_date::text AS date, user_id::text AS user_key, menu_id,
+                   taste_score, operation_score, mood_score, energy_score,
+                   is_favorited, sleep_quality, brain_body_load, meal_count
+            FROM review_logs
+            WHERE user_id = %s::uuid
+            ORDER BY log_date, log_id
+            """,
+            (uid,),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame(columns=LOG_COLUMNS)
+    df = pd.DataFrame([dict(r) for r in rows], columns=LOG_COLUMNS)
+    for col in ["taste_score", "operation_score", "mood_score", "energy_score", "meal_count"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["is_favorited"] = df["is_favorited"].astype(bool)
+    return df
+
+
+def pg_save_weights(df: pd.DataFrame) -> None:
+    uid = current_user_id()
+    if not uid or df.empty:
+        return
+    with pg_cursor() as cur:
+        for _, row in df.iterrows():
+            cur.execute(
+                """
+                INSERT INTO menu_weights (
+                    user_id, menu_id, base_score, multiplier, final_weight,
+                    is_favorited, log_count, updated_at
+                ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id, menu_id) DO UPDATE SET
+                    base_score = EXCLUDED.base_score,
+                    multiplier = EXCLUDED.multiplier,
+                    final_weight = EXCLUDED.final_weight,
+                    is_favorited = EXCLUDED.is_favorited,
+                    log_count = EXCLUDED.log_count,
+                    updated_at = NOW()
+                """,
+                (
+                    uid,
+                    str(row["menu_id"]),
+                    float(row.get("base_score") or 0),
+                    float(row.get("multiplier") or 1),
+                    float(row.get("final_weight") or 0),
+                    bool(row.get("is_favorited")),
+                    int(row.get("log_count") or 0),
+                ),
+            )
+
+
+def pg_load_weights() -> pd.DataFrame:
+    from src.database import WEIGHTS_COLUMNS
+
+    uid = current_user_id()
+    if not uid:
+        return pd.DataFrame(columns=WEIGHTS_COLUMNS)
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT menu_id, base_score, multiplier, final_weight,
+                   is_favorited, log_count, updated_at::text AS updated_at
+            FROM menu_weights
+            WHERE user_id = %s::uuid
+            ORDER BY menu_id
+            """,
+            (uid,),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame(columns=WEIGHTS_COLUMNS)
+    df = pd.DataFrame([dict(r) for r in rows], columns=WEIGHTS_COLUMNS)
+    for col in ["base_score", "multiplier", "final_weight"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["log_count"] = pd.to_numeric(df["log_count"], errors="coerce").fillna(0).astype(int)
+    df["is_favorited"] = df["is_favorited"].astype(bool)
+    return df
