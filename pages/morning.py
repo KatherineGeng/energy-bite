@@ -813,26 +813,27 @@ def _on_unlock_plan() -> None:
 
 
 def _render_bottom_action_buttons(*, locked: bool) -> None:
-    cols = st.columns(3)
-    with cols[0]:
-        if st.button("营养覆盖", key="bottom_cov", use_container_width=True):
-            _toggle_coverage_table()
-    with cols[1]:
-        confirm_label = "重新编辑" if locked else "确认今日菜单"
-        if st.button(
-            confirm_label,
-            key="bottom_confirm",
-            type="primary" if not locked else "secondary",
-            use_container_width=True,
-        ):
-            if locked:
-                _on_unlock_plan()
-            else:
-                with st.spinner("正在保存…"):
-                    _confirm_today_plan()
-    with cols[2]:
-        if st.button("收藏菜单", key="bottom_fav", use_container_width=True):
-            _on_favorite_menu()
+    with st.container(key="eb_bottom_actions"):
+        cols = st.columns(3)
+        with cols[0]:
+            if st.button("营养覆盖", key="bottom_cov", use_container_width=True):
+                _toggle_coverage_table()
+        with cols[1]:
+            confirm_label = "重新编辑" if locked else "确认今日菜单"
+            if st.button(
+                confirm_label,
+                key="bottom_confirm",
+                type="primary" if not locked else "secondary",
+                use_container_width=True,
+            ):
+                if locked:
+                    _on_unlock_plan()
+                else:
+                    with st.spinner("正在保存…"):
+                        _confirm_today_plan()
+        with cols[2]:
+            if st.button("收藏菜单", key="bottom_fav", use_container_width=True):
+                _on_favorite_menu()
 
 
 def _render_bottom_action_row(*, locked: bool) -> None:

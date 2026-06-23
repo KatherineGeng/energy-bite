@@ -109,9 +109,6 @@ if not _is_admin and not profile_complete():
 
 hydrate_today_state()
 
-if _page != "admin" and not _is_admin:
-    render_bottom_nav()
-
 if _page == "morning":
     from pages import morning
 
@@ -132,3 +129,6 @@ else:
     from pages import export_poster
 
     export_poster.render()
+
+if _page != "admin" and not _is_admin:
+    render_bottom_nav()

@@ -122,24 +122,46 @@ def inject_mobile_css() -> None:
             font-size: 1.35rem !important;
             line-height: 1 !important;
         }}
-        /* Streamlit 底栏 — 固定视口底部，须在 app.py 内容渲染前调用 render_bottom_nav */
+        /* Streamlit 底栏 — 固定视口底部（在 app.py 内容渲染之后调用） */
+        .eb-bottom-nav-spacer {{
+            height: calc(3.2rem + env(safe-area-inset-bottom)) !important;
+            pointer-events: none !important;
+        }}
         .st-key-eb_bottom_nav {{
             position: fixed !important;
             left: 0 !important;
             right: 0 !important;
             bottom: 0 !important;
             z-index: 999 !important;
+            width: 100% !important;
+            max-width: 100vw !important;
             background: #ffffff !important;
             border-top: 1px solid rgba(30, 41, 59, 0.1) !important;
             box-shadow: 0 -1px 8px rgba(30, 41, 59, 0.06) !important;
             padding: 0.15rem 0 calc(0.15rem + env(safe-area-inset-bottom)) 0 !important;
             margin: 0 !important;
         }}
-        .st-key-eb_bottom_nav [data-testid="stHorizontalBlock"] {{
+        .st-key-eb_bottom_nav [data-testid="stHorizontalBlock"],
+        .st-key-eb_bottom_nav [data-testid="stHorizontalBlock"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            width: 100% !important;
             gap: 0 !important;
+        }}
+        .st-key-eb_bottom_nav [data-testid="column"] {{
+            flex: 1 1 25% !important;
+            min-width: 0 !important;
+            width: 25% !important;
+            max-width: 25% !important;
+        }}
+        .st-key-eb_bottom_nav [data-testid="column"] > div {{
+            width: 100% !important;
         }}
         .st-key-eb_bottom_nav button {{
             min-height: 2.85rem !important;
+            width: 100% !important;
             border: none !important;
             box-shadow: none !important;
             background: transparent !important;
@@ -147,7 +169,7 @@ def inject_mobile_css() -> None:
             font-size: 0.72rem !important;
             line-height: 1.15 !important;
             white-space: pre-line !important;
-            padding: 0.28rem 0 !important;
+            padding: 0.28rem 0.1rem !important;
         }}
         .st-key-eb_bottom_nav button[kind="primary"] {{
             color: {ACCENT} !important;
@@ -158,6 +180,25 @@ def inject_mobile_css() -> None:
         .st-key-eb_bottom_nav button[kind="primary"]:focus,
         .st-key-eb_bottom_nav button[kind="secondary"]:focus {{
             box-shadow: none !important;
+        }}
+        /* 餐时底部三键 — 强制横排 */
+        .st-key-eb_bottom_actions [data-testid="stHorizontalBlock"],
+        .st-key-eb_bottom_actions [data-testid="stHorizontalBlock"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            width: 100% !important;
+            gap: 0.35rem !important;
+        }}
+        .st-key-eb_bottom_actions [data-testid="column"] {{
+            flex: 1 1 33% !important;
+            min-width: 0 !important;
+            width: 33% !important;
+        }}
+        .st-key-eb_bottom_actions button {{
+            min-height: 2.45rem !important;
+            font-size: 0.82rem !important;
+            padding: 0.4rem 0.15rem !important;
         }}
         .eb-action-icon {{
             display: inline-flex !important;
@@ -590,6 +631,7 @@ def _navigate_to(page_id: str) -> None:
 
 def render_bottom_nav(current_page: str | None = None) -> None:
     """Fixed tab bar — Streamlit buttons (session routing, no URL reload)."""
+    st.markdown('<div class="eb-bottom-nav-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
     page = current_page or st.session_state.get("current_page", "morning")
     with st.container(key="eb_bottom_nav"):
         cols = st.columns(len(NAV_ITEMS), gap="small")
