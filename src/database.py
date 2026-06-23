@@ -18,6 +18,7 @@ from src.constants import (
     LOG_FILE,
     MENU_FILE,
     MORNING_CONTEXT_FILE,
+    REVIEW_DRAFTS_FILE,
     SCORE_MAX,
     SCORE_MIN,
     WEIGHTS_FILE,
@@ -90,6 +91,7 @@ APP_IMAGES_FILE = "app_images.csv"
 APP_IMAGES_COLUMNS = ["image_id", "filename", "source", "title", "created_at", "data_b64"]
 APP_IMAGES_DIR = DATA_PATH / "app_images"
 MORNING_CONTEXT_COLUMNS = ["date", "user_key", "sleep", "load", "meal_count", "updated_at"]
+REVIEW_DRAFTS_COLUMNS = ["date", "user_key", "payload_json", "completed", "updated_at"]
 DAILY_PLAN_COLUMNS = [
     "date",
     "user_key",
@@ -1542,3 +1544,68 @@ def save_morning_context(day: str, sleep: str, load: str, meal_count: int) -> No
     from src.user_vault import notify_user_data_changed
 
     notify_user_data_changed()
+
+
+def save_review_draft(day: str, payload: dict[str, Any]) -> None:
+    from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
+
+    user_key = plan_user_key()
+    if not user_key:
+        return
+
+    if postgres_enabled():
+        from src.pg_store import pg_save_review_draft
+
+        pg_save_review_draft(day, payload)
+        return
+
+    df = _read_csv(REVIEW_DRAFTS_FILE, REVIEW_DRAFTS_COLUMNS)
+    now = datetime.now().isoformat(timespec="seconds")
+    row = {
+        "date": day,
+        "user_key": user_key,
+        "payload_json": json.dumps(payload, ensure_ascii=False),
+        "completed": "true" if payload.get("completed") else "false",
+        "updated_at": now,
+    }
+    if df.empty:
+        out = pd.DataFrame([row])
+    else:
+        mask = (df["date"] == day) & (df["user_key"] == user_key)
+        df = df[~mask]
+        out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    _write_csv(out[REVIEW_DRAFTS_COLUMNS], REVIEW_DRAFTS_FILE)
+    from src.user_vault import notify_user_data_changed
+
+    notify_user_data_changed()
+
+
+def load_review_draft(day: str) -> dict[str, Any] | None:
+    from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
+
+    user_key = plan_user_key()
+    if not user_key:
+        return None
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_review_draft
+
+        return pg_load_review_draft(day)
+
+    df = _read_csv(REVIEW_DRAFTS_FILE, REVIEW_DRAFTS_COLUMNS)
+    if df.empty:
+        return None
+    rows = df[(df["date"] == day) & (df["user_key"] == user_key)]
+    if rows.empty:
+        return None
+    row = rows.iloc[-1]
+    try:
+        payload = json.loads(str(row["payload_json"]))
+    except json.JSONDecodeError:
+        return None
+    if isinstance(payload, dict):
+        payload["completed"] = str(row.get("completed", "")).lower() in ("true", "1", "yes")
+        return payload
+    return None

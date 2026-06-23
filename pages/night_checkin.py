@@ -15,7 +15,13 @@ from src.database import (
     remove_favorite_dish,
     save_favorite_dish,
     save_favorite_menu_set,
-    save_morning_context,
+)
+from src.review_persistence import (
+    apply_review_draft_to_session,
+    autosave_morning_context,
+    on_morning_change,
+    on_review_field_change,
+    persist_review_draft,
 )
 from src.review_ui import render_dish_header_with_favorite
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
@@ -29,7 +35,7 @@ def _score_btn(x: int) -> str:
     return str(x)
 
 
-def _toggle_dish_favorite(menu_id: str, today: str) -> None:
+def _toggle_dish_favorite(menu_id: str, today: str, menu_ids: list[str]) -> None:
     key = f"review_{menu_id}_fav_dish"
     current = st.session_state.get(key)
     if current is None:
@@ -43,6 +49,7 @@ def _toggle_dish_favorite(menu_id: str, today: str) -> None:
         save_favorite_dish(menu_id, today)
     else:
         remove_favorite_dish(menu_id, today)
+    persist_review_draft(today, menu_ids)
 
 
 def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
@@ -247,6 +254,8 @@ def _render_morning_section(today_iso: str) -> None:
         horizontal=True,
         label_visibility="collapsed",
         key="morning_sleep",
+        on_change=on_morning_change,
+        args=(today_iso,),
     )
 
     st.markdown('<p class="eb-morning-q-title">二、今日脑力/体力消耗</p>', unsafe_allow_html=True)
@@ -256,6 +265,8 @@ def _render_morning_section(today_iso: str) -> None:
         horizontal=True,
         label_visibility="collapsed",
         key="morning_load",
+        on_change=on_morning_change,
+        args=(today_iso,),
     )
 
     st.markdown('<p class="eb-morning-q-title">三、今日一人食餐数</p>', unsafe_allow_html=True)
@@ -266,17 +277,13 @@ def _render_morning_section(today_iso: str) -> None:
         label_visibility="collapsed",
         key="morning_meal_count",
         format_func=lambda x: f"{x} 餐",
+        on_change=on_morning_change,
+        args=(today_iso,),
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("保存晨间记录", type="secondary", use_container_width=True, key="save_morning_context"):
-        save_morning_context(today_iso, sleep, load, int(meal_count))
-        st.session_state.morning_inputs = {
-            "sleep": sleep,
-            "load": load,
-            "meal_count": int(meal_count),
-        }
-        st.session_state.morning_context_loaded = today_iso
+        autosave_morning_context(today_iso)
         st.session_state.record_saved_flash = True
         st.rerun()
 
@@ -293,6 +300,7 @@ def _render_evening_section(confirmed: dict) -> None:
 
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
+    apply_review_draft_to_session(today, menu_ids)
     _hydrate_review_favorites(menu_ids, today)
     for menu_id in menu_ids:
         menu_row = get_menu_row(menu_id, snapshots)
@@ -306,7 +314,7 @@ def _render_evening_section(confirmed: dict) -> None:
                 meal_type,
                 dish_name,
                 menu_id,
-                on_toggle=lambda m=menu_id, d=today: _toggle_dish_favorite(m, d),
+                on_toggle=lambda m=menu_id, d=today, ids=menu_ids: _toggle_dish_favorite(m, d, ids),
             )
 
             st.markdown('<p class="eb-score-label">操作从容度 (1-5分)</p>', unsafe_allow_html=True)
@@ -320,6 +328,8 @@ def _render_evening_section(confirmed: dict) -> None:
                 label_visibility="collapsed",
                 key=f"review_{menu_id}_operation",
                 index=None,
+                on_change=on_review_field_change,
+                args=(today, menu_ids),
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -337,10 +347,17 @@ def _render_evening_section(confirmed: dict) -> None:
                 label_visibility="collapsed",
                 key=f"review_{menu_id}_nps",
                 index=None,
+                on_change=on_review_field_change,
+                args=(today, menu_ids),
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
-    st.checkbox("🌟 收藏今日整套全天菜单", key="review_fav_full_day")
+    st.checkbox(
+        "🌟 收藏今日整套全天菜单",
+        key="review_fav_full_day",
+        on_change=on_review_field_change,
+        args=(today, menu_ids),
+    )
 
     section_title("fa-heart-pulse", "全天个人状态")
 
@@ -354,6 +371,8 @@ def _render_evening_section(confirmed: dict) -> None:
         label_visibility="collapsed",
         key="review_day_mood",
         index=None,
+        on_change=on_review_field_change,
+        args=(today, menu_ids),
     )
 
     st.markdown("**精力水平 (1-5分)**")
@@ -366,6 +385,8 @@ def _render_evening_section(confirmed: dict) -> None:
         label_visibility="collapsed",
         key="review_day_energy",
         index=None,
+        on_change=on_review_field_change,
+        args=(today, menu_ids),
     )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
@@ -394,6 +415,7 @@ def _render_evening_section(confirmed: dict) -> None:
         if st.session_state.get("review_fav_full_day"):
             save_favorite_menu_set(menu_ids, today)
 
+        persist_review_draft(today, menu_ids, completed=True)
         recalculate_weights()
         st.session_state.last_log_id = log_ids[-1] if log_ids else None
         st.session_state.review_complete = True

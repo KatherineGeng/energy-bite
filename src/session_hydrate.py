@@ -67,6 +67,9 @@ def apply_morning_context_from_disk(day: str | None = None) -> bool:
         "meal_count": int(ctx["meal_count"]),
     }
     st.session_state.morning_context_loaded = target
+    from src.review_persistence import mark_morning_disk_signature
+
+    mark_morning_disk_signature(target, ctx["sleep"], ctx["load"], int(ctx["meal_count"]))
     return True
 
 
@@ -185,6 +188,9 @@ def hydrate_today_state() -> None:
             "meal_count": int(ctx["meal_count"]),
         }
         st.session_state.morning_context_loaded = today
+        from src.review_persistence import mark_morning_disk_signature
+
+        mark_morning_disk_signature(today, ctx["sleep"], ctx["load"], int(ctx["meal_count"]))
     elif st.session_state.get("morning_context_loaded") != today:
         for key in ("morning_sleep", "morning_load", "morning_meal_count", "morning_inputs"):
             st.session_state.pop(key, None)

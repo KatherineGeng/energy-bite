@@ -346,6 +346,69 @@ def pg_load_morning_context(day: str) -> dict[str, Any] | None:
     }
 
 
+def pg_save_review_draft(day: str, payload: dict[str, Any]) -> None:
+    uid = current_user_id()
+    if not uid:
+        return
+    dishes = payload.get("dishes") or {}
+    day_mood = payload.get("day_mood")
+    day_energy = payload.get("day_energy")
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO evening_review_drafts (
+                user_id, review_date, day_mood, day_energy, fav_full_day,
+                dish_scores, completed, updated_at
+            ) VALUES (%s::uuid, %s::date, %s, %s, %s, %s::jsonb, %s, NOW())
+            ON CONFLICT (user_id, review_date) DO UPDATE SET
+                day_mood = EXCLUDED.day_mood,
+                day_energy = EXCLUDED.day_energy,
+                fav_full_day = EXCLUDED.fav_full_day,
+                dish_scores = EXCLUDED.dish_scores,
+                completed = EXCLUDED.completed,
+                updated_at = NOW()
+            """,
+            (
+                uid,
+                day,
+                int(day_mood) if day_mood is not None else None,
+                int(day_energy) if day_energy is not None else None,
+                bool(payload.get("fav_full_day", False)),
+                json.dumps(dishes, ensure_ascii=False),
+                bool(payload.get("completed", False)),
+            ),
+        )
+
+
+def pg_load_review_draft(day: str) -> dict[str, Any] | None:
+    uid = current_user_id()
+    if not uid:
+        return None
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT day_mood, day_energy, fav_full_day, dish_scores, completed, updated_at
+            FROM evening_review_drafts
+            WHERE user_id = %s::uuid AND review_date = %s::date
+            """,
+            (uid, day),
+        )
+        row = cur.fetchone()
+    if not row:
+        return None
+    dishes = row.get("dish_scores") or {}
+    if isinstance(dishes, str):
+        dishes = json.loads(dishes)
+    return {
+        "day_mood": row.get("day_mood"),
+        "day_energy": row.get("day_energy"),
+        "fav_full_day": bool(row.get("fav_full_day")),
+        "dishes": dishes if isinstance(dishes, dict) else {},
+        "completed": bool(row.get("completed")),
+        "updated_at": str(row.get("updated_at") or ""),
+    }
+
+
 def pg_load_all_user_profiles() -> pd.DataFrame:
     with pg_cursor() as cur:
         cur.execute(

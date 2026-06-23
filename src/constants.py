@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Bump this on every deploy so users can verify Streamlit Cloud picked up the build.
-APP_VERSION = "5.0.12"
+APP_VERSION = "5.0.13"
 
 GENDER_OPTIONS = ["女", "男", "其他"]
 AGE_GROUP_OPTIONS = ["40岁以下", "40-49岁", "50-59岁", "60岁及以上"]
@@ -84,6 +84,7 @@ MENU_FILE = "menu_db.csv"
 LOG_FILE = "log_db.csv"
 WEIGHTS_FILE = "menu_weights.csv"
 MORNING_CONTEXT_FILE = "morning_context.csv"
+REVIEW_DRAFTS_FILE = "review_drafts.csv"
 DAILY_PLAN_FILE = "daily_meal_plans.csv"
 
 SCORE_MIN = 1
