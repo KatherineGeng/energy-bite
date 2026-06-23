@@ -129,6 +129,31 @@ def _inject_review_card_css() -> None:
             padding: 0.25rem 0 !important;
             font-size: 0.88rem !important;
         }}
+        .eb-evening-review div[data-testid="stRadio"] > div,
+        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            width: 100% !important;
+        }}
+        .eb-evening-review div[data-testid="stRadio"] label,
+        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            justify-content: center !important;
+            padding: 0.35rem 0.15rem !important;
+            white-space: nowrap !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            width: 100% !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="column"] {{
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }}
         .eb-morning-block [data-testid="stWidgetLabel"] {{
             display: none !important;
         }}
@@ -332,16 +357,14 @@ def _render_evening_section(confirmed: dict) -> None:
 def render() -> None:
     today_iso = st.session_state.get("today_date", date.today().isoformat())
     _inject_review_card_css()
+    _render_morning_section(today_iso)
 
     confirmed = get_confirmed_plan(today_iso)
-    if confirmed:
-        section_title("fa-moon", "晚间回顾")
-        st.caption("以下为您在「今日菜单」中已确认的就餐计划。")
-        _render_evening_section(confirmed)
-        st.divider()
-        with st.expander("晨间三问（可选）", expanded=False):
-            _render_morning_section(today_iso)
+    if not confirmed:
+        st.warning("请先在「菜单」页确认今日就餐计划，再填写下方晚间回顾。")
         return
 
-    _render_morning_section(today_iso)
-    st.warning("请先在「菜单」页确认今日就餐计划，再填写晚间回顾。")
+    st.divider()
+    section_title("fa-moon", "晚间回顾")
+    st.caption("以下为您在「今日菜单」中已确认的就餐计划。")
+    _render_evening_section(confirmed)

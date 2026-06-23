@@ -39,21 +39,18 @@ def render_score_picker(
     caption: str,
     session_key: str,
     *,
-    btn_prefix: str,
+    btn_prefix: str = "",
 ) -> None:
-    """Five score buttons in one row — no radio wrap on mobile."""
+    """Five-point horizontal radio — matches 4.12.1 mobile layout."""
+    del btn_prefix
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     st.caption(caption)
-    current = st.session_state.get(session_key)
-    cols = st.columns(5, gap="small")
-    for score in range(1, 6):
-        with cols[score - 1]:
-            selected = current == score
-            if st.button(
-                str(score),
-                key=f"{btn_prefix}_{score}",
-                use_container_width=True,
-                type="primary" if selected else "secondary",
-            ):
-                st.session_state[session_key] = score
-                st.rerun()
+    st.radio(
+        title,
+        options=[1, 2, 3, 4, 5],
+        horizontal=True,
+        format_func=str,
+        label_visibility="collapsed",
+        key=session_key,
+        index=None,
+    )
