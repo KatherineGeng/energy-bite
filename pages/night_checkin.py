@@ -23,7 +23,8 @@ from src.review_persistence import (
     on_review_field_change,
     persist_review_draft,
 )
-from src.review_ui import render_dish_header_with_favorite
+from src.query_nav import pop_query_param
+from src.review_ui import render_dish_header_with_favorite, render_score_picker
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
@@ -35,7 +36,10 @@ def _score_btn(x: int) -> str:
     return str(x)
 
 
-def _toggle_dish_favorite(menu_id: str, today: str, menu_ids: list[str]) -> None:
+def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
+    menu_id = pop_query_param("review_fav")
+    if not menu_id:
+        return
     key = f"review_{menu_id}_fav_dish"
     current = st.session_state.get(key)
     if current is None:
@@ -133,68 +137,51 @@ def _inject_review_card_css() -> None:
             color: #EF4444 !important;
         }}
         .eb-fav-heart {{
-            font-size: 1.25rem !important;
+            font-size: 1.15rem !important;
             line-height: 1 !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child .stButton > button {{
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            color: #64748B !important;
-            font-size: 0.92rem !important;
-            padding: 0.1rem 0.2rem !important;
-            min-height: 2rem !important;
-            height: auto !important;
-            justify-content: flex-end !important;
-            white-space: nowrap !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child .stButton > button[kind="primary"] {{
-            color: #EF4444 !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child .stButton > button p {{
-            font-size: 0.92rem !important;
-        }}
-        .eb-score-radio {{
-            width: 100% !important;
-            overflow: hidden !important;
-        }}
-        .eb-score-radio div[data-testid="stRadio"] {{
-            width: 100% !important;
-            max-width: 100% !important;
-        }}
-        .eb-score-radio div[data-testid="stRadio"] > div {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) {{
             flex-wrap: nowrap !important;
-            display: flex !important;
-            flex-direction: row !important;
+            gap: 0.2rem !important;
             width: 100% !important;
-            gap: 0 !important;
-            justify-content: space-between !important;
         }}
-        .eb-score-radio div[data-testid="stRadio"] label {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) > [data-testid="column"] {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            max-width: none !important;
+            width: 0 !important;
+            padding: 0 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) .stButton {{
+            width: 100% !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) .stButton > button {{
+            min-height: 2.35rem !important;
+            padding: 0.3rem 0 !important;
+            font-size: 0.92rem !important;
+            width: 100% !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] > div {{
+            display: grid !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            gap: 0 !important;
+            width: 100% !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label {{
+            min-width: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
-            gap: 0.08rem !important;
             justify-content: center !important;
-            font-size: 0.78rem !important;
+            gap: 0.1rem !important;
         }}
-        .eb-score-radio div[data-testid="stRadio"] label p {{
+        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label p {{
             font-size: 0.78rem !important;
             margin: 0 !important;
-            padding: 0 !important;
         }}
-        .eb-score-radio div[data-testid="stRadio"] label > div:first-child {{
+        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label > div:first-child {{
             width: 1.125rem !important;
             height: 1.125rem !important;
             min-width: 1.125rem !important;
             flex-shrink: 0 !important;
-            margin-right: 0.06rem !important;
-        }}
-        .eb-score-radio div[data-testid="stRadio"] label > div:first-child > div {{
-            width: 1.125rem !important;
-            height: 1.125rem !important;
         }}
         .eb-morning-block [data-testid="stWidgetLabel"] {{
             display: none !important;
@@ -298,6 +285,8 @@ def _render_evening_section(confirmed: dict) -> None:
 
     section_title("fa-utensils", "今日餐食评价")
 
+    _apply_review_fav_toggle(today, menu_ids)
+
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
     apply_review_draft_to_session(today, menu_ids)
@@ -310,47 +299,22 @@ def _render_evening_section(confirmed: dict) -> None:
         with st.container(border=True):
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
-            render_dish_header_with_favorite(
-                meal_type,
-                dish_name,
-                menu_id,
-                on_toggle=lambda m=menu_id, d=today, ids=menu_ids: _toggle_dish_favorite(m, d, ids),
-            )
+            render_dish_header_with_favorite(meal_type, dish_name, menu_id)
 
-            st.markdown('<p class="eb-score-label">操作从容度 (1-5分)</p>', unsafe_allow_html=True)
-            st.caption("1：极其匆忙 → 5：优雅享受")
-            st.markdown('<div class="eb-score-radio">', unsafe_allow_html=True)
-            st.radio(
-                "操作从容度",
-                options=SCORE_OPTIONS,
-                horizontal=True,
-                format_func=_score_btn,
-                label_visibility="collapsed",
-                key=f"review_{menu_id}_operation",
-                index=None,
-                on_change=on_review_field_change,
-                args=(today, menu_ids),
+            render_score_picker(
+                "操作从容度 (1-5分)",
+                "1：极其匆忙 → 5：优雅享受",
+                f"review_{menu_id}_operation",
+                btn_prefix=f"review_{menu_id}_op",
+                on_pick=lambda d=today, ids=menu_ids: on_review_field_change(d, ids),
             )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown(
-                '<p class="eb-score-label">这道菜我还想再吃一次 (1-5分)</p>',
-                unsafe_allow_html=True,
+            render_score_picker(
+                "这道菜我还想再吃一次 (1-5分)",
+                "1：极不赞成 → 5：极度赞成",
+                f"review_{menu_id}_nps",
+                btn_prefix=f"review_{menu_id}_nps",
+                on_pick=lambda d=today, ids=menu_ids: on_review_field_change(d, ids),
             )
-            st.caption("1：极不赞成 → 5：极度赞成")
-            st.markdown('<div class="eb-score-radio">', unsafe_allow_html=True)
-            st.radio(
-                "NPS意愿",
-                options=SCORE_OPTIONS,
-                horizontal=True,
-                format_func=_score_btn,
-                label_visibility="collapsed",
-                key=f"review_{menu_id}_nps",
-                index=None,
-                on_change=on_review_field_change,
-                args=(today, menu_ids),
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
 
     st.checkbox(
         "🌟 收藏今日整套全天菜单",
