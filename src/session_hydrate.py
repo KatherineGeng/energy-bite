@@ -70,6 +70,7 @@ def apply_morning_context_from_disk(day: str | None = None) -> bool:
     return True
 
 
+def clear_menu_session_state() -> None:
     """Reset menu-related session when user profile is not ready."""
     st.session_state.meal_plan = empty_meal_plan()
     st.session_state.current_day_menus = []
@@ -79,10 +80,8 @@ def apply_morning_context_from_disk(day: str | None = None) -> bool:
     st.session_state.final_daily_list = []
     st.session_state.menu_locked = False
     st.session_state.eb_add_ui = None
-    st.session_state.morning_inputs = {}
     st.session_state.eb_plan_snapshots = {}
-    st.session_state._hydrated_date = None
-    st.session_state._hydrated_user = None
+    clear_hydration_markers()
 
 
 def _apply_saved_plan(saved: dict) -> None:
