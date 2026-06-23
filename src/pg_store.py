@@ -380,6 +380,46 @@ def pg_save_review_draft(day: str, payload: dict[str, Any]) -> None:
         )
 
 
+def pg_save_poster_snapshot(day: str, png_bytes: bytes, menu_ids: list[str]) -> None:
+    uid = current_user_id()
+    if not uid:
+        return
+    menu_csv = ",".join(menu_ids)
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO poster_snapshots (user_id, poster_date, png_data, menu_ids, updated_at)
+            VALUES (%s::uuid, %s::date, %s, %s, NOW())
+            ON CONFLICT (user_id, poster_date) DO UPDATE SET
+                png_data = EXCLUDED.png_data,
+                menu_ids = EXCLUDED.menu_ids,
+                updated_at = NOW()
+            """,
+            (uid, day, png_bytes, menu_csv),
+        )
+
+
+def pg_load_poster_snapshot(day: str) -> tuple[bytes, list[str]] | None:
+    uid = current_user_id()
+    if not uid:
+        return None
+    with pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT png_data, menu_ids
+            FROM poster_snapshots
+            WHERE user_id = %s::uuid AND poster_date = %s::date
+            """,
+            (uid, day),
+        )
+        row = cur.fetchone()
+    if not row or not row.get("png_data"):
+        return None
+    raw_ids = str(row.get("menu_ids") or "")
+    menu_ids = [x.strip() for x in raw_ids.split(",") if x.strip()]
+    return bytes(row["png_data"]), menu_ids
+
+
 def pg_load_review_draft(day: str) -> dict[str, Any] | None:
     uid = current_user_id()
     if not uid:

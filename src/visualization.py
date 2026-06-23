@@ -26,11 +26,10 @@ PILL_TEXT = (94, 120, 108)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LIFESTYLE_LOCAL_CANDIDATES = [
     PROJECT_ROOT / "assets" / "placeholders" / "lifestyle_default.jpg",
+    PROJECT_ROOT / "assets" / "app_gallery" / "Pic 1.jpg",
     PROJECT_ROOT / "pictures" / "Pic 1.jpg",
+    PROJECT_ROOT / "assets" / "placeholders" / "meal_default.png",
 ]
-LIFESTYLE_PLACEHOLDER_URL = (
-    "http://googleusercontent.com/image_collection/image_retrieval/13967363910131595220"
-)
 
 FONT_CANDIDATES = [
     # Linux (Streamlit Cloud — installed via packages.txt)
@@ -52,22 +51,38 @@ TITLE_X = LEFT_MARGIN + LABEL_COL_W
 DETAIL_X = LEFT_MARGIN + 20
 CONTENT_W = POSTER_WIDTH - LEFT_MARGIN - RIGHT_MARGIN
 
+_MEAL_ORDER = ("早餐", "午餐", "晚餐")
+_MEAL_LABELS = {"早餐": "晨", "午餐": "午", "晚餐": "晚"}
+
+_FONT_CACHE: dict[tuple[int, int], ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
+_LIFESTYLE_PLACEHOLDER: Image.Image | None | bool = False
+
 
 def _y(ratio: float) -> int:
     return int(POSTER_HEIGHT * ratio)
 
 
 def _load_font(size: int, index: int = 0) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    key = (size, index)
+    cached = _FONT_CACHE.get(key)
+    if cached is not None:
+        return cached
     for path in FONT_CANDIDATES:
         if Path(path).exists():
             try:
-                return ImageFont.truetype(path, size=size, index=index)
+                font = ImageFont.truetype(path, size=size, index=index)
+                _FONT_CACHE[key] = font
+                return font
             except OSError:
                 try:
-                    return ImageFont.truetype(path, size=size)
+                    font = ImageFont.truetype(path, size=size)
+                    _FONT_CACHE[key] = font
+                    return font
                 except OSError:
                     continue
-    return ImageFont.load_default()
+    font = ImageFont.load_default()
+    _FONT_CACHE[key] = font
+    return font
 
 
 def _text_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
@@ -204,17 +219,22 @@ def _draw_module_b(draw: ImageDraw.ImageDraw, meals: list[dict], ingredient_map:
     name_font = _load_font(36)
     detail_font = _load_font(26)
 
-    slots = [
-        ("晨", "早餐"),
-        ("午", "午餐"),
-        ("晚", "晚餐"),
-    ]
     meal_by_type = {m.get("meal_type"): m for m in meals}
+    slots: list[tuple[str, str, dict | None]] = []
+    for meal_type in _MEAL_ORDER:
+        meal = meal_by_type.get(meal_type)
+        if meal:
+            slots.append((_MEAL_LABELS[meal_type], meal_type, meal))
+    if not slots and meals:
+        for meal in meals:
+            meal_type = str(meal.get("meal_type") or "午餐")
+            label = _MEAL_LABELS.get(meal_type, meal_type[:1])
+            slots.append((label, meal_type, meal))
+
     y = _y(0.15)
     detail_max_w = POSTER_WIDTH - DETAIL_X - RIGHT_MARGIN
 
-    for label, meal_type in slots:
-        meal = meal_by_type.get(meal_type)
+    for label, _meal_type, meal in slots:
         name = meal.get("menu_name", "—") if meal else "—"
         prefix = f"{label}："
         prefix_w, _ = _text_size(draw, prefix, label_font)
@@ -243,17 +263,17 @@ def _draw_module_b(draw: ImageDraw.ImageDraw, meals: list[dict], ingredient_map:
 
 
 def _load_lifestyle_placeholder() -> Image.Image | None:
-    import urllib.request
+    global _LIFESTYLE_PLACEHOLDER
+    if _LIFESTYLE_PLACEHOLDER is not False:
+        return _LIFESTYLE_PLACEHOLDER
 
     for path in LIFESTYLE_LOCAL_CANDIDATES:
         if path.exists():
-            return Image.open(path).convert("RGB")
+            _LIFESTYLE_PLACEHOLDER = Image.open(path).convert("RGB")
+            return _LIFESTYLE_PLACEHOLDER
 
-    try:
-        with urllib.request.urlopen(LIFESTYLE_PLACEHOLDER_URL, timeout=8) as resp:
-            return Image.open(io.BytesIO(resp.read())).convert("RGB")
-    except Exception:
-        return None
+    _LIFESTYLE_PLACEHOLDER = None
+    return None
 
 
 def _draw_module_c(canvas: Image.Image, photos: list[Any]) -> None:
@@ -369,12 +389,15 @@ def generate_daily_poster(
     return buf.read()
 
 
-def meals_for_poster_from_ids(menu_ids: list[str]) -> list[dict]:
-    from src.database import get_menu_by_id
+def meals_for_poster_from_ids(
+    menu_ids: list[str],
+    snapshots: dict[str, dict[str, str]] | None = None,
+) -> list[dict]:
+    from src.database import get_menu_row
 
     meals: list[dict] = []
     for menu_id in menu_ids:
-        row = get_menu_by_id(menu_id)
+        row = get_menu_row(menu_id, snapshots)
         if row:
             meals.append(row)
     return meals

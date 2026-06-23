@@ -9,11 +9,13 @@ import streamlit as st
 
 from src.database import (
     append_menu_from_share,
-    get_menu_by_id,
+    get_menu_row,
+    load_daily_meal_plan,
     record_menu_archive,
 )
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
+from src.poster_store import meals_for_poster, restore_poster_for_display, save_poster_state
 from src.session_hydrate import menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text
 
@@ -82,10 +84,18 @@ def _today_menu_ids() -> list[str]:
     return list(st.session_state.get("final_daily_list") or st.session_state.get("current_day_menus") or [])
 
 
-def _menu_rows_for_ids(menu_ids: list[str]) -> list[dict]:
+def _plan_snapshots(date_str: str) -> dict:
+    plan = load_daily_meal_plan(date_str)
+    if plan:
+        return dict(plan.get("snapshots") or {})
+    return dict(st.session_state.get("eb_plan_snapshots") or {})
+
+
+def _menu_rows_for_ids(menu_ids: list[str], date_str: str | None = None) -> list[dict]:
+    snapshots = _plan_snapshots(date_str) if date_str else {}
     rows: list[dict] = []
     for mid in menu_ids:
-        row = get_menu_by_id(mid)
+        row = get_menu_row(mid, snapshots)
         if row:
             rows.append(row)
     return rows
@@ -95,10 +105,7 @@ def _render_menu_summary(date_str: str, menu_ids: list[str]) -> None:
     if not menu_ids:
         st.info(f"{date_str} 暂无已保存的菜单记录。")
         return
-    for mid in menu_ids:
-        row = get_menu_by_id(mid)
-        if not row:
-            continue
+    for row in _menu_rows_for_ids(menu_ids, date_str):
         st.markdown(f"**{row.get('meal_type', '')} · {row['menu_name']}**")
         st.caption(str(row.get("energy_tags", "")).replace("·", " · "))
 
@@ -133,7 +140,43 @@ def _render_default_poster() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_poster_panel() -> None:
+def _render_poster_actions(date_str: str) -> None:
+    if not st.session_state.get("poster_bytes"):
+        return
+    dl_col, code_col = st.columns(2)
+    with dl_col:
+        st.download_button(
+            "保存至本地",
+            data=st.session_state.poster_bytes,
+            file_name=st.session_state.get("poster_filename", "jianyu_poster.png"),
+            mime="image/png",
+            use_container_width=True,
+            key="download_poster",
+        )
+    with code_col:
+        if st.button("复制菜单口令", use_container_width=True, key="gen_poster_share_code"):
+            ids = list(st.session_state.get("poster_menu_ids") or [])
+            date_for_code = str(st.session_state.get("poster_date_str", date_str))
+            rows = _menu_rows_for_ids(ids, date_for_code)
+            if rows:
+                share_text = encode_day_menu_share_text(date_for_code, rows)
+                st.session_state.poster_share_text = share_text
+                _record_shared_menus(date_for_code, ids)
+                _append_poster_history(date_for_code, ids, share_text)
+            else:
+                st.session_state.poster_share_text = ""
+
+    share_text = st.session_state.get("poster_share_text", "")
+    if share_text:
+        st.text_area(
+            "菜单口令（长按全选复制，发送给好友）",
+            value=share_text,
+            height=140,
+            key="poster_share_code_display",
+        )
+
+
+def _render_poster_controls() -> None:
     today = date.today()
     today_iso = today.isoformat()
     default_ids = _today_menu_ids()
@@ -173,54 +216,40 @@ def _render_poster_panel() -> None:
     if st.button("生成海报", type="primary", use_container_width=True, key="gen_poster", disabled=not menu_ids):
         photos: list[bytes] = []
         if uploaded:
-            save_uploads_to_library(uploaded, source="user")
             photos.extend(f.getvalue() for f in uploaded[:2])
         for data in gallery_photos:
             if len(photos) >= 2:
                 break
             photos.append(data)
         photos = photos[:2]
-        png_bytes = generate_poster(date_str=date_str, menu_ids=menu_ids, photos=photos)
-        st.session_state.poster_bytes = png_bytes
-        st.session_state.poster_filename = f"jianyu_{date_str}.png"
-        st.session_state.poster_menu_ids = menu_ids
-        st.session_state.poster_date_str = date_str
+
+        snapshots = _plan_snapshots(date_str)
+        meals = meals_for_poster(date_str, menu_ids)
+        with st.spinner("正在生成海报…"):
+            png_bytes = generate_poster(
+                date_str=date_str,
+                meals=meals,
+                photos=photos,
+                snapshots=snapshots,
+            )
+        if uploaded:
+            save_uploads_to_library(uploaded, source="user")
+        save_poster_state(date_str, png_bytes, menu_ids)
         st.session_state.poster_share_text = ""
         _append_poster_history(date_str, menu_ids)
-        st.rerun()
 
+
+@st.fragment
+def _render_poster_section() -> None:
+    today_iso = date.today().isoformat()
+    restore_poster_for_display(today_iso)
+    _render_default_poster()
     if st.session_state.get("poster_bytes"):
-        dl_col, code_col = st.columns(2)
-        with dl_col:
-            st.download_button(
-                "保存至本地",
-                data=st.session_state.poster_bytes,
-                file_name=st.session_state.get("poster_filename", "jianyu_poster.png"),
-                mime="image/png",
-                use_container_width=True,
-                key="download_poster",
-            )
-        with code_col:
-            if st.button("复制菜单口令", use_container_width=True, key="gen_poster_share_code"):
-                ids = list(st.session_state.get("poster_menu_ids") or [])
-                date_for_code = str(st.session_state.get("poster_date_str", date_str))
-                rows = _menu_rows_for_ids(ids)
-                if rows:
-                    share_text = encode_day_menu_share_text(date_for_code, rows)
-                    st.session_state.poster_share_text = share_text
-                    _record_shared_menus(date_for_code, ids)
-                    _append_poster_history(date_for_code, ids, share_text)
-                else:
-                    st.session_state.poster_share_text = ""
-
-        share_text = st.session_state.get("poster_share_text", "")
-        if share_text:
-            st.text_area(
-                "菜单口令（长按全选复制，发送给好友）",
-                value=share_text,
-                height=140,
-                key="poster_share_code_display",
-            )
+        _render_poster_actions(str(st.session_state.get("poster_date_str", today_iso)))
+    if st.session_state.get("export_action_panel") == "poster":
+        st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
+        _render_poster_controls()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_import_panel() -> None:
@@ -242,8 +271,9 @@ def _render_import_panel() -> None:
                 menu_name=import_name.strip(),
                 description=f"由极客口令导入 · 预估分数 {payload.estimated_score:.2f}",
             )
-            menu_row = get_menu_by_id(new_id)
-            st.success(f"已导入 · {menu_row['menu_name']}（{new_id}）")
+            menu_row = get_menu_row(new_id, {})
+            if menu_row:
+                st.success(f"已导入 · {menu_row['menu_name']}（{new_id}）")
         except ShareCodeError as exc:
             st.error(str(exc))
         except ValueError as exc:
@@ -271,15 +301,21 @@ def _render_trail_panel() -> None:
                     height=100,
                     key=f"trail_share_{idx}_{date_str}",
                 )
-            elif st.button("生成口令", key=f"trail_gen_{idx}_{date_str}", use_container_width=True):
-                rows = _menu_rows_for_ids(ids)
-                if rows:
-                    code = encode_day_menu_share_text(date_str, rows)
-                    item["share_text"] = code
-                    history[idx] = item
-                    st.session_state.poster_history = history
-                    _record_shared_menus(date_str, ids)
-                    st.rerun()
+            else:
+                btn_col, _ = st.columns([1, 1])
+                with btn_col:
+                    if st.button("生成口令", key=f"trail_gen_{idx}_{date_str}", use_container_width=True):
+                        rows = _menu_rows_for_ids(ids, date_str)
+                        if rows:
+                            code = encode_day_menu_share_text(date_str, rows)
+                            item["share_text"] = code
+                            history[idx] = item
+                            st.session_state.poster_history = history
+                            _record_shared_menus(date_str, ids)
+                            st.rerun()
+            if st.button("恢复此日海报", key=f"trail_restore_{idx}_{date_str}", use_container_width=True):
+                restore_poster_for_display(date_str)
+                st.rerun()
 
 
 def _render_top_actions() -> None:
@@ -309,11 +345,7 @@ def _render_top_actions() -> None:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if panel == "poster":
-        st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
-        _render_poster_panel()
-        st.markdown("</div>", unsafe_allow_html=True)
-    elif panel == "import":
+    if panel == "import":
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
         _render_import_panel()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -349,7 +381,9 @@ def render() -> None:
 
     if "poster_history" not in st.session_state:
         st.session_state.poster_history = []
+    if "poster_cache" not in st.session_state:
+        st.session_state.poster_cache = {}
 
     _render_top_actions()
-    _render_default_poster()
+    _render_poster_section()
     _render_trail_action()

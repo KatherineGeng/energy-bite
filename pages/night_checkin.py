@@ -17,6 +17,7 @@ from src.database import (
     save_favorite_dish,
     save_favorite_menu_set,
 )
+from src.query_nav import pop_query_param
 from src.review_persistence import (
     apply_review_draft_to_session,
     autosave_morning_context,
@@ -24,7 +25,7 @@ from src.review_persistence import (
     on_review_field_change,
     persist_review_draft,
 )
-from src.review_ui import dish_favorited, render_dish_header_with_favorite, render_score_picker
+from src.review_ui import render_dish_header_with_favorite, render_score_picker_html
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
@@ -36,10 +37,20 @@ def _score_btn(x: int) -> str:
     return str(x)
 
 
-def _toggle_dish_favorite(menu_id: str, today: str, menu_ids: list[str]) -> None:
-    key = f"review_{menu_id}_fav_dish"
-    new_val = not dish_favorited(menu_id, today)
-    st.session_state[key] = new_val
+def _dish_favorited_in_db(menu_id: str, today: str) -> bool:
+    df = load_favorites_dishes()
+    if df.empty:
+        return False
+    return not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
+
+
+def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
+    menu_id = pop_query_param("review_fav")
+    if not menu_id:
+        return
+    currently = _dish_favorited_in_db(menu_id, today)
+    new_val = not currently
+    st.session_state[f"review_{menu_id}_fav_dish"] = new_val
     if new_val:
         save_favorite_dish(menu_id, today)
     else:
@@ -47,37 +58,24 @@ def _toggle_dish_favorite(menu_id: str, today: str, menu_ids: list[str]) -> None
     persist_review_draft(today, menu_ids)
 
 
-@st.fragment
-def _render_dish_review_card(
-    meal_type: str,
-    dish_name: str,
-    menu_id: str,
-    today: str,
-    menu_ids: list[str],
-) -> None:
-    with st.container(border=True):
-        render_dish_header_with_favorite(
-            meal_type,
-            dish_name,
-            menu_id,
-            today,
-            on_toggle=lambda m=menu_id, d=today, ids=menu_ids: _toggle_dish_favorite(m, d, ids),
-        )
-        on_pick = lambda d=today, ids=menu_ids: None
-        render_score_picker(
-            "操作从容度 (1-5分)",
-            "1：极其匆忙 → 5：优雅享受",
-            f"review_{menu_id}_operation",
-            btn_prefix=f"review_{menu_id}_op",
-            on_pick=on_pick,
-        )
-        render_score_picker(
-            "这道菜我还想再吃一次 (1-5分)",
-            "1：极不赞成 → 5：极度赞成",
-            f"review_{menu_id}_nps",
-            btn_prefix=f"review_{menu_id}_nps",
-            on_pick=on_pick,
-        )
+def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
+    raw = pop_query_param("review_score")
+    if not raw:
+        return
+    parts = raw.split(":", 2)
+    if len(parts) != 3:
+        return
+    menu_id, field, score_text = parts
+    if field not in ("operation", "nps"):
+        return
+    try:
+        score = int(score_text)
+    except ValueError:
+        return
+    if score < 1 or score > 5:
+        return
+    st.session_state[f"review_{menu_id}_{field}"] = score
+    persist_review_draft(today, menu_ids)
 
 
 def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
@@ -163,77 +161,6 @@ def _inject_review_card_css() -> None:
         .eb-fav-heart {{
             font-size: 1.15rem !important;
             line-height: 1 !important;
-        }}
-        /* 5.0.15 score chip look — applied to Streamlit buttons (fast on_click) */
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: stretch !important;
-            gap: 0.28rem !important;
-            width: 100% !important;
-            margin: 0.15rem 0 0.5rem !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) > [data-testid="column"] {{
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
-            width: 0 !important;
-            padding: 0 !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) .stButton > button {{
-            min-height: 2.4rem !important;
-            border-radius: 10px !important;
-            border: 1px solid rgba(141, 163, 153, 0.45) !important;
-            background: rgba(255, 255, 255, 0.9) !important;
-            color: #334155 !important;
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) .stButton > button[kind="primary"] {{
-            background: {ACCENT} !important;
-            border-color: {ACCENT} !important;
-            color: #fff !important;
-        }}
-        /* 5.0.15 favorite link look — not a full-width green button */
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            gap: 0.35rem !important;
-            width: 100% !important;
-            margin: 0 0 0.35rem !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:first-child {{
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:last-child {{
-            flex: 0 0 auto !important;
-            width: auto !important;
-            min-width: 4.8rem !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:last-child .stButton > button {{
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            color: #64748B !important;
-            font-size: 0.92rem !important;
-            font-weight: 500 !important;
-            padding: 0.1rem 0.2rem !important;
-            min-height: 2rem !important;
-            height: auto !important;
-            justify-content: flex-end !important;
-            white-space: nowrap !important;
-            width: auto !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:last-child .stButton > button[kind="primary"] {{
-            color: #EF4444 !important;
-            background: transparent !important;
-            border: none !important;
         }}
         .eb-score-row {{
             display: flex !important;
@@ -359,7 +286,7 @@ def _render_morning_section(today_iso: str) -> None:
     st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
 
     st.markdown('<p class="eb-morning-q-title">一、昨晚睡眠状态</p>', unsafe_allow_html=True)
-    sleep = st.radio(
+    st.radio(
         "昨晚睡眠状态",
         SLEEP_OPTIONS,
         horizontal=True,
@@ -370,7 +297,7 @@ def _render_morning_section(today_iso: str) -> None:
     )
 
     st.markdown('<p class="eb-morning-q-title">二、今日脑力/体力消耗</p>', unsafe_allow_html=True)
-    load = st.radio(
+    st.radio(
         "脑力体力消耗",
         LOAD_OPTIONS,
         horizontal=True,
@@ -381,7 +308,7 @@ def _render_morning_section(today_iso: str) -> None:
     )
 
     st.markdown('<p class="eb-morning-q-title">三、今日一人食餐数</p>', unsafe_allow_html=True)
-    meal_count = st.radio(
+    st.radio(
         "一人食餐数",
         MEAL_COUNT_OPTIONS,
         horizontal=True,
@@ -410,6 +337,9 @@ def _render_evening_section(confirmed: dict) -> None:
 
     section_title("fa-utensils", "今日餐食评价")
 
+    _apply_review_fav_toggle(today, menu_ids)
+    _apply_review_score_pick(today, menu_ids)
+
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
     apply_review_draft_to_session(today, menu_ids)
@@ -418,9 +348,28 @@ def _render_evening_section(confirmed: dict) -> None:
         menu_row = get_menu_row(menu_id, snapshots)
         if not menu_row:
             continue
-        meal_type = str(menu_row.get("meal_type", "")).strip()
-        dish_name = menu_row["menu_name"]
-        _render_dish_review_card(meal_type, dish_name, menu_id, today, menu_ids)
+
+        with st.container(border=True):
+            meal_type = str(menu_row.get("meal_type", "")).strip()
+            dish_name = menu_row["menu_name"]
+            render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
+
+            render_score_picker_html(
+                "操作从容度 (1-5分)",
+                "1：极其匆忙 → 5：优雅享受",
+                f"review_{menu_id}_operation",
+                menu_id,
+                "operation",
+                today,
+            )
+            render_score_picker_html(
+                "这道菜我还想再吃一次 (1-5分)",
+                "1：极不赞成 → 5：极度赞成",
+                f"review_{menu_id}_nps",
+                menu_id,
+                "nps",
+                today,
+            )
 
     st.checkbox(
         "🌟 收藏今日整套全天菜单",

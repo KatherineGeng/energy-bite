@@ -73,6 +73,8 @@ if "export_action_panel" not in st.session_state:
 
 if "poster_history" not in st.session_state:
     st.session_state.poster_history = []
+if "poster_cache" not in st.session_state:
+    st.session_state.poster_cache = {}
 
 VALID_PAGES = {"morning", "night", "export", "mine", "admin"}
 apply_query_nav(VALID_PAGES)
