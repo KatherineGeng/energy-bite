@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.database import init_database
 from src.favorites_ui import render_collapsible_favorites
 from src.menu_review_ui import render_calendar_menu_review
-from src.session_hydrate import hydrate_today_state
 
 
 def _inject_mine_css() -> None:
@@ -33,8 +31,6 @@ def _inject_mine_css() -> None:
 
 
 def render() -> None:
-    init_database()
-    hydrate_today_state()
     _inject_mine_css()
 
     st.markdown('<p class="eb-mine-section-title">📅 日历菜单回顾</p>', unsafe_allow_html=True)

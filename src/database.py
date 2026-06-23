@@ -1259,14 +1259,14 @@ def _plan_dict_from_row(row: pd.Series) -> dict[str, list[str]]:
     }
 
 
-def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: bool) -> None:
+def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: bool) -> dict[str, dict[str, str]]:
     """Persist draft or confirmed meal plan for a date (scoped by user)."""
     from src.client_profile import plan_user_key
     from src.db_config import postgres_enabled
 
     user_key = plan_user_key()
     if not user_key:
-        return
+        return {}
 
     prev_snaps: dict[str, dict[str, str]] = {}
     if postgres_enabled():
@@ -1286,7 +1286,9 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
     if postgres_enabled():
         from src.pg_store import pg_save_daily_meal_plan
 
-        pg_save_daily_meal_plan(day, plan, confirmed=confirmed, snapshots=snapshots)
+        src_tag = "confirmed_plan" if confirmed else "draft_plan"
+        pg_save_daily_meal_plan(day, plan, confirmed=confirmed, snapshots=snapshots, menu_source=src_tag)
+        return snapshots
     else:
         row = {
             "date": day,
@@ -1317,6 +1319,7 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
         from src.user_vault import notify_user_data_changed
 
         notify_user_data_changed()
+    return snapshots
 
 
 def load_daily_meal_plan(day: str) -> dict[str, Any] | None:

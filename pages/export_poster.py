@@ -10,12 +10,11 @@ import streamlit as st
 from src.database import (
     append_menu_from_share,
     get_menu_by_id,
-    init_database,
     record_menu_archive,
 )
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
-from src.session_hydrate import hydrate_today_state, menu_ids_for_date
+from src.session_hydrate import menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text
 
 _SAMPLE_POSTER = Path(__file__).resolve().parent.parent / "assets" / "sample_poster.png"
@@ -340,8 +339,6 @@ def _render_trail_action() -> None:
 
 
 def render() -> None:
-    init_database()
-    hydrate_today_state()
     apply_gallery_pick_action()
 
     _inject_export_ui_css()

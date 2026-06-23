@@ -48,7 +48,4 @@ def apply_query_nav(valid_pages: set[str]) -> None:
         nav = nav[0] if nav else None
     if not nav or nav not in valid_pages:
         return
-    page_changed = st.session_state.get("current_page") != nav
     st.session_state.current_page = nav
-    if page_changed:
-        st.rerun()

@@ -122,6 +122,43 @@ def inject_mobile_css() -> None:
             font-size: 1.35rem !important;
             line-height: 1 !important;
         }}
+        /* Streamlit 底栏 — 固定视口底部，须在 app.py 内容渲染前调用 render_bottom_nav */
+        .st-key-eb_bottom_nav {{
+            position: fixed !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 999 !important;
+            background: #ffffff !important;
+            border-top: 1px solid rgba(30, 41, 59, 0.1) !important;
+            box-shadow: 0 -1px 8px rgba(30, 41, 59, 0.06) !important;
+            padding: 0.15rem 0 calc(0.15rem + env(safe-area-inset-bottom)) 0 !important;
+            margin: 0 !important;
+        }}
+        .st-key-eb_bottom_nav [data-testid="stHorizontalBlock"] {{
+            gap: 0 !important;
+        }}
+        .st-key-eb_bottom_nav button {{
+            min-height: 2.85rem !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            color: #64748B !important;
+            font-size: 0.72rem !important;
+            line-height: 1.15 !important;
+            white-space: pre-line !important;
+            padding: 0.28rem 0 !important;
+        }}
+        .st-key-eb_bottom_nav button[kind="primary"] {{
+            color: {ACCENT} !important;
+            font-weight: 600 !important;
+            background: transparent !important;
+            border: none !important;
+        }}
+        .st-key-eb_bottom_nav button[kind="primary"]:focus,
+        .st-key-eb_bottom_nav button[kind="secondary"]:focus {{
+            box-shadow: none !important;
+        }}
         .eb-action-icon {{
             display: inline-flex !important;
             align-items: center !important;
@@ -547,15 +584,22 @@ def render_meal_action_row(
     )
 
 
+def _navigate_to(page_id: str) -> None:
+    st.session_state.current_page = page_id
+
+
 def render_bottom_nav(current_page: str | None = None) -> None:
-    """Fixed tab bar at viewport bottom (HTML links, Safari-safe)."""
+    """Fixed tab bar — Streamlit buttons (session routing, no URL reload)."""
     page = current_page or st.session_state.get("current_page", "morning")
-    parts: list[str] = []
-    for page_id, icon, label in NAV_ITEMS:
-        active = " active" if page_id == page else ""
-        parts.append(
-            f'<a class="eb-nav-link{active}" href="{append_nav_params(f"?nav={page_id}")}">'
-            f'<span class="eb-nav-icon">{icon}</span>'
-            f'<span class="eb-nav-label">{label}</span></a>'
-        )
-    st.markdown(f'<nav class="eb-bottom-nav">{"".join(parts)}</nav>', unsafe_allow_html=True)
+    with st.container(key="eb_bottom_nav"):
+        cols = st.columns(len(NAV_ITEMS), gap="small")
+        for col, (page_id, icon, label) in zip(cols, NAV_ITEMS, strict=True):
+            with col:
+                st.button(
+                    f"{icon}\n{label}",
+                    key=f"eb_nav_{page_id}",
+                    use_container_width=True,
+                    type="primary" if page_id == page else "secondary",
+                    on_click=_navigate_to,
+                    kwargs={"page_id": page_id},
+                )

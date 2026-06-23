@@ -84,6 +84,8 @@ if postgres_enabled():
 
     restore_session_user()
 else:
+    from src.client_profile import sync_profile_from_url
+
     sync_profile_from_url()
     restore_profile_from_browser()
 
@@ -107,6 +109,9 @@ if not _is_admin and not profile_complete():
 
 hydrate_today_state()
 
+if _page != "admin" and not _is_admin:
+    render_bottom_nav()
+
 if _page == "morning":
     from pages import morning
 
@@ -127,6 +132,3 @@ else:
     from pages import export_poster
 
     export_poster.render()
-
-if _page != "admin" and not _is_admin:
-    render_bottom_nav()

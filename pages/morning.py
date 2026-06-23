@@ -15,7 +15,6 @@ from src.database import (
     get_menu_by_id,
     get_menu_row,
     get_menus_by_pick_frequency,
-    init_database,
     load_daily_meal_plan,
     load_morning_context,
     save_daily_meal_plan,
@@ -30,7 +29,7 @@ from src.meal_plan_utils import (
     plan_from_menu_ids,
 )
 from src.favorite_recommend import recent_favorite_menu_candidates
-from src.session_hydrate import get_confirmed_plan, hydrate_today_state
+from src.session_hydrate import get_confirmed_plan
 from src.llm_client import has_api_key
 from src.coverage_widget import render_daily_coverage_table
 from src.nutrition import coverage_summary
@@ -98,7 +97,15 @@ def _plan_from_menu_ids(menu_ids: list[str]) -> dict[str, list[str]]:
 
 def _persist_plan(plan: dict[str, list[str]], *, confirmed: bool) -> None:
     today = st.session_state.get("today_date", date.today().isoformat())
-    save_daily_meal_plan(today, plan, confirmed=confirmed)
+    from src.db_config import postgres_enabled
+
+    snapshots = save_daily_meal_plan(today, plan, confirmed=confirmed)
+    if snapshots:
+        st.session_state.eb_plan_snapshots = snapshots
+
+    if postgres_enabled():
+        return
+
     saved = load_daily_meal_plan(today)
     if saved:
         st.session_state.eb_plan_snapshots = saved.get("snapshots", {})
@@ -228,7 +235,12 @@ def _close_add_panel() -> None:
     st.session_state.eb_add_ui = None
 
 
-def _try_confirm_new_dish(meal_type: str) -> bool:
+def _try_confirm_new_dish(
+    meal_type: str,
+    *,
+    ing_text: str | None = None,
+    prep: int | None = None,
+) -> bool:
     ui = st.session_state.get("eb_add_ui") or {}
     if ui.get("step") != "create":
         return False
@@ -236,8 +248,14 @@ def _try_confirm_new_dish(meal_type: str) -> bool:
     ing_key = f"new_ing_{meal_type}"
     prep_key = f"new_prep_{meal_type}"
     analysis_key = f"nutr_result_{meal_type}"
-    ing_text = str(st.session_state.get(ing_key, "")).strip()
-    prep = int(st.session_state.get(prep_key, 15))
+    if ing_text is None:
+        ing_text = str(st.session_state.get(ing_key, "")).strip()
+    else:
+        ing_text = str(ing_text).strip()
+    if prep is None:
+        prep = int(st.session_state.get(prep_key, 15))
+    else:
+        prep = int(prep)
     analysis = st.session_state.get(analysis_key)
 
     if not ing_text:
@@ -442,13 +460,13 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
     prep_key = f"new_prep_{meal_type}"
 
     st.text_input("菜品名称", value=dish_name, disabled=True, key=f"new_name_{meal_type}")
-    st.text_area(
+    ing_text = st.text_area(
         "食材（必填）",
         placeholder="例如：希腊酸奶、蓝莓、核桃（用顿号或逗号分隔）",
         key=ing_key,
         height=80,
     )
-    st.number_input(
+    prep = st.number_input(
         "准备时间（分钟，必填）",
         min_value=1,
         max_value=180,
@@ -462,7 +480,7 @@ def _render_new_dish_form(meal_type: str, dish_name: str) -> None:
         use_container_width=True,
         key=f"confirm_new_{meal_type}",
     ):
-        if _try_confirm_new_dish(meal_type):
+        if _try_confirm_new_dish(meal_type, ing_text=ing_text, prep=prep):
             st.rerun()
 
 
@@ -794,8 +812,34 @@ def _on_unlock_plan() -> None:
     _persist_plan(plan, confirmed=False)
 
 
+def _render_bottom_action_buttons(*, locked: bool) -> None:
+    cols = st.columns(3)
+    with cols[0]:
+        if st.button("营养覆盖", key="bottom_cov", use_container_width=True):
+            _toggle_coverage_table()
+    with cols[1]:
+        confirm_label = "重新编辑" if locked else "确认今日菜单"
+        if st.button(
+            confirm_label,
+            key="bottom_confirm",
+            type="primary" if not locked else "secondary",
+            use_container_width=True,
+        ):
+            if locked:
+                _on_unlock_plan()
+            else:
+                with st.spinner("正在保存…"):
+                    _confirm_today_plan()
+    with cols[2]:
+        if st.button("收藏菜单", key="bottom_fav", use_container_width=True):
+            _on_favorite_menu()
+
+
 def _render_bottom_action_row(*, locked: bool) -> None:
-    """Three horizontal HTML links — mobile Safari safe."""
+    """Three horizontal HTML links — mobile Safari safe (CSV mode)."""
+    if _use_streamlit_meal_actions():
+        _render_bottom_action_buttons(locked=locked)
+        return
     page = st.session_state.get("current_page", "morning")
     base = append_nav_params(f"?nav={quote(page)}")
     confirm_label = "重新编辑" if locked else "确认今日菜单"
@@ -840,8 +884,6 @@ def _save_favorite_menu() -> bool:
 
 
 def render() -> None:
-    init_database()
-    hydrate_today_state()
     today_iso = st.session_state.get("today_date", date.today().isoformat())
 
     legacy_act = pop_query_param("act")

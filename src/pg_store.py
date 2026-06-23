@@ -162,41 +162,43 @@ def pg_get_menu_by_id(menu_id: str, user_id: str | None = None) -> dict[str, Any
     return None
 
 
-def pg_upsert_user_menu(row: dict[str, Any], *, source: str = "manual") -> None:
+def pg_upsert_user_menu(row: dict[str, Any], *, source: str = "manual", cur: Any | None = None) -> None:
     uid = current_user_id()
     if not uid or not row.get("menu_id") or not row.get("menu_name"):
         return
-    with pg_cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO user_menus (
-                user_id, menu_id, menu_name, ingredient_ids, energy_tags,
-                meal_type, prep_minutes, description, source, saved_at
-            ) VALUES (
-                %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, NOW()
-            )
-            ON CONFLICT (user_id, menu_id) DO UPDATE SET
-                menu_name = EXCLUDED.menu_name,
-                ingredient_ids = EXCLUDED.ingredient_ids,
-                energy_tags = EXCLUDED.energy_tags,
-                meal_type = EXCLUDED.meal_type,
-                prep_minutes = EXCLUDED.prep_minutes,
-                description = EXCLUDED.description,
-                source = EXCLUDED.source,
-                saved_at = NOW()
-            """,
-            (
-                uid,
-                str(row["menu_id"]),
-                str(row["menu_name"]),
-                str(row.get("ingredient_ids") or ""),
-                str(row.get("energy_tags") or ""),
-                str(row.get("meal_type") or "午餐"),
-                int(row.get("prep_minutes") or 15),
-                str(row.get("description") or ""),
-                source,
-            ),
+    sql = """
+        INSERT INTO user_menus (
+            user_id, menu_id, menu_name, ingredient_ids, energy_tags,
+            meal_type, prep_minutes, description, source, saved_at
+        ) VALUES (
+            %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, NOW()
         )
+        ON CONFLICT (user_id, menu_id) DO UPDATE SET
+            menu_name = EXCLUDED.menu_name,
+            ingredient_ids = EXCLUDED.ingredient_ids,
+            energy_tags = EXCLUDED.energy_tags,
+            meal_type = EXCLUDED.meal_type,
+            prep_minutes = EXCLUDED.prep_minutes,
+            description = EXCLUDED.description,
+            source = EXCLUDED.source,
+            saved_at = NOW()
+    """
+    params = (
+        uid,
+        str(row["menu_id"]),
+        str(row["menu_name"]),
+        str(row.get("ingredient_ids") or ""),
+        str(row.get("energy_tags") or ""),
+        str(row.get("meal_type") or "午餐"),
+        int(row.get("prep_minutes") or 15),
+        str(row.get("description") or ""),
+        source,
+    )
+    if cur is not None:
+        cur.execute(sql, params)
+        return
+    with pg_cursor() as inner:
+        inner.execute(sql, params)
 
 
 def pg_find_menu_by_name(name: str) -> dict[str, str] | None:
@@ -220,7 +222,14 @@ def _parse_plan_column(value: str) -> list[str]:
     return [part.strip() for part in text.split("|") if part.strip()]
 
 
-def pg_save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: bool, snapshots: dict) -> None:
+def pg_save_daily_meal_plan(
+    day: str,
+    plan: dict[str, list[str]],
+    *,
+    confirmed: bool,
+    snapshots: dict,
+    menu_source: str = "draft_plan",
+) -> None:
     uid = current_user_id()
     if not uid:
         return
@@ -248,6 +257,10 @@ def pg_save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: 
                 json.dumps(snapshots, ensure_ascii=False),
             ),
         )
+        for mid, snap in snapshots.items():
+            if not snap.get("menu_name"):
+                continue
+            pg_upsert_user_menu({"menu_id": mid, **snap}, source=menu_source, cur=cur)
 
 
 def pg_load_daily_meal_plan(day: str) -> dict[str, Any] | None:
