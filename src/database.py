@@ -167,6 +167,19 @@ def _write_csv(df: pd.DataFrame, filename: str) -> None:
 
 def init_database(force: bool = False) -> None:
     """Create data directory and seed CSV files if missing."""
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        import streamlit as st
+
+        from src.pg_store import init_postgres_schema, seed_global_catalog
+
+        if force or not st.session_state.get("_pg_inited"):
+            init_postgres_schema()
+            seed_global_catalog()
+            st.session_state._pg_inited = True
+        return
+
     DATA_PATH.mkdir(parents=True, exist_ok=True)
 
     if force or not _csv_path(INGREDIENTS_FILE).exists():
@@ -232,10 +245,25 @@ def _migrate_legacy_daily_plans() -> None:
 
 
 def load_ingredients() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_ingredients
+
+        return pg_load_ingredients()
     return _read_csv(INGREDIENTS_FILE, INGREDIENTS_COLUMNS)
 
 
 def load_menus() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_menus_merged
+
+        df = pg_load_menus_merged()
+        if not df.empty and "prep_minutes" in df.columns:
+            df["prep_minutes"] = pd.to_numeric(df["prep_minutes"], errors="coerce").fillna(0).astype(int)
+        return df
     try:
         from src.menu_persistence import ensure_user_menus_rehydrated
 
@@ -351,6 +379,13 @@ def get_ingredient_map() -> dict[str, dict[str, str]]:
 
 
 def get_menu_by_id(menu_id: str) -> dict[str, Any] | None:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_get_menu_by_id
+
+        row = pg_get_menu_by_id(menu_id)
+        return row
     df = load_menus()
     match = df[df["menu_id"] == menu_id]
     if not match.empty:
@@ -699,6 +734,12 @@ def save_user_profile(
 
 
 def load_all_user_profiles() -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_all_user_profiles
+
+        return pg_load_all_user_profiles()
     return _read_csv(USER_PROFILE_FILE, USER_PROFILE_COLUMNS)
 
 
@@ -1113,7 +1154,6 @@ def append_manual_menu(
     else:
         desc = ing_text or "手工添加"
 
-    df = load_menus()
     menu_id = next_menu_id()
     ids_text = "|".join(ids)
     tags = parse_energy_tags(energy_tags)
@@ -1128,8 +1168,12 @@ def append_manual_menu(
         "prep_minutes": int(prep_minutes),
         "description": desc,
     }
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    _write_csv(df, MENU_FILE)
+    from src.db_config import postgres_enabled
+
+    if not postgres_enabled():
+        df = load_menus()
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+        _write_csv(df, MENU_FILE)
 
     persist_menu_record(row, source="manual")
     return menu_id
@@ -1202,37 +1246,50 @@ def _plan_dict_from_row(row: pd.Series) -> dict[str, list[str]]:
 def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: bool) -> None:
     """Persist draft or confirmed meal plan for a date (scoped by user)."""
     from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
 
     user_key = plan_user_key()
     if not user_key:
         return
 
-    df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     prev_snaps: dict[str, dict[str, str]] = {}
-    if not df.empty:
-        mask = (df["date"] == day) & (df["user_key"] == user_key)
-        prev_rows = df[mask]
-        if not prev_rows.empty:
-            prev_snaps = _parse_plan_snapshots(str(prev_rows.iloc[-1].get("snapshots", "")))
+    if postgres_enabled():
+        existing = load_daily_meal_plan(day)
+        if existing:
+            prev_snaps = existing.get("snapshots", {})
+    else:
+        df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+        if not df.empty:
+            mask = (df["date"] == day) & (df["user_key"] == user_key)
+            prev_rows = df[mask]
+            if not prev_rows.empty:
+                prev_snaps = _parse_plan_snapshots(str(prev_rows.iloc[-1].get("snapshots", "")))
 
     snapshots = _build_plan_snapshots(plan, prev_snaps)
-    row = {
-        "date": day,
-        "user_key": user_key,
-        "breakfast": "|".join(plan.get("早餐", [])),
-        "lunch": "|".join(plan.get("午餐", [])),
-        "dinner": "|".join(plan.get("晚餐", [])),
-        "confirmed": "true" if confirmed else "false",
-        "updated_at": datetime.now().isoformat(timespec="seconds"),
-        "snapshots": json.dumps(snapshots, ensure_ascii=False),
-    }
-    if df.empty:
-        out = pd.DataFrame([row])
+
+    if postgres_enabled():
+        from src.pg_store import pg_save_daily_meal_plan
+
+        pg_save_daily_meal_plan(day, plan, confirmed=confirmed, snapshots=snapshots)
     else:
-        mask = (df["date"] == day) & (df["user_key"] == user_key)
-        df = df[~mask]
-        out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    _write_csv(out[DAILY_PLAN_COLUMNS], DAILY_PLAN_FILE)
+        row = {
+            "date": day,
+            "user_key": user_key,
+            "breakfast": "|".join(plan.get("早餐", [])),
+            "lunch": "|".join(plan.get("午餐", [])),
+            "dinner": "|".join(plan.get("晚餐", [])),
+            "confirmed": "true" if confirmed else "false",
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+            "snapshots": json.dumps(snapshots, ensure_ascii=False),
+        }
+        df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
+        if df.empty:
+            out = pd.DataFrame([row])
+        else:
+            mask = (df["date"] == day) & (df["user_key"] == user_key)
+            df = df[~mask]
+            out = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+        _write_csv(out[DAILY_PLAN_COLUMNS], DAILY_PLAN_FILE)
 
     from src.menu_persistence import persist_menu_record
 
@@ -1240,17 +1297,24 @@ def save_daily_meal_plan(day: str, plan: dict[str, list[str]], *, confirmed: boo
     for mid, snap in snapshots.items():
         if snap.get("menu_name"):
             persist_menu_record({"menu_id": mid, **snap}, source=src_tag, sync_browser=False)
-    from src.user_vault import notify_user_data_changed
+    if not postgres_enabled():
+        from src.user_vault import notify_user_data_changed
 
-    notify_user_data_changed()
+        notify_user_data_changed()
 
 
 def load_daily_meal_plan(day: str) -> dict[str, Any] | None:
     from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
 
     user_key = plan_user_key()
     if not user_key:
         return None
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_daily_meal_plan
+
+        return pg_load_daily_meal_plan(day)
 
     df = _read_csv(DAILY_PLAN_FILE, DAILY_PLAN_COLUMNS)
     if df.empty:
@@ -1306,10 +1370,16 @@ def list_meal_plan_dates(*, confirmed_only: bool = False) -> list[str]:
 
 def load_morning_context(day: str) -> dict[str, Any] | None:
     from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
 
     user_key = plan_user_key()
     if not user_key:
         return None
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_morning_context
+
+        return pg_load_morning_context(day)
 
     df = _read_csv(MORNING_CONTEXT_FILE, MORNING_CONTEXT_COLUMNS)
     if df.empty:
@@ -1328,9 +1398,16 @@ def load_morning_context(day: str) -> dict[str, Any] | None:
 
 def save_morning_context(day: str, sleep: str, load: str, meal_count: int) -> None:
     from src.client_profile import plan_user_key
+    from src.db_config import postgres_enabled
 
     user_key = plan_user_key()
     if not user_key:
+        return
+
+    if postgres_enabled():
+        from src.pg_store import pg_save_morning_context
+
+        pg_save_morning_context(day, sleep, load, meal_count)
         return
 
     df = _read_csv(MORNING_CONTEXT_FILE, MORNING_CONTEXT_COLUMNS)

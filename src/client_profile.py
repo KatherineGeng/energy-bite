@@ -16,6 +16,12 @@ _PROFILE_KEY = "eb_profile_ebp"
 
 def plan_user_key() -> str:
     """Stable per-user key for scoping saved meal plans on shared server storage."""
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.db_auth import current_user_id
+
+        return current_user_id()
     token = profile_token()
     if not token:
         return ""
@@ -61,6 +67,10 @@ def profile_token() -> str:
 
 
 def profile_query_suffix() -> str:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        return ""
     token = profile_token()
     return f"&ebp={quote(token)}" if token else ""
 

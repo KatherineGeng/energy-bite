@@ -57,6 +57,8 @@ def _render_users_tab() -> None:
         st.info("暂无用户资料。")
         return
     st.dataframe(df, use_container_width=True, hide_index=True)
+    csv = df.to_csv(index=False).encode("utf-8-sig")
+    st.download_button("下载用户 CSV", csv, file_name="users.csv", mime="text/csv", key="admin_dl_users")
 
 
 def _render_menus_tab() -> None:
@@ -65,6 +67,8 @@ def _render_menus_tab() -> None:
     st.caption(f"共 {len(menus)} 道菜品 · {len(ingredients)} 种食材")
     if not menus.empty:
         st.dataframe(menus, use_container_width=True, hide_index=True)
+        csv = menus.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("下载菜单 CSV", csv, file_name="menus.csv", mime="text/csv", key="admin_dl_menus")
     if not ingredients.empty:
         with st.expander("食材库"):
             st.dataframe(ingredients, use_container_width=True, hide_index=True)

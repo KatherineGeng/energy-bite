@@ -93,14 +93,17 @@ def ensure_today_plan_persisted() -> None:
     from src.database import record_menu_archive
 
     record_menu_archive(today, menu_ids)
-    from src.plan_bootstrap import persist_plan_to_browser
+    from src.db_config import postgres_enabled
 
-    persist_plan_to_browser(
-        today,
-        plan,
-        confirmed=locked,
-        snapshots=st.session_state.get("eb_plan_snapshots", {}),
-    )
+    if not postgres_enabled():
+        from src.plan_bootstrap import persist_plan_to_browser
+
+        persist_plan_to_browser(
+            today,
+            plan,
+            confirmed=locked,
+            snapshots=st.session_state.get("eb_plan_snapshots", {}),
+        )
 
 
 def hydrate_today_state() -> None:
@@ -122,11 +125,14 @@ def hydrate_today_state() -> None:
 
     saved_plan = load_daily_meal_plan(today)
     if not saved_plan:
-        token_plan = plan_from_query_token()
-        if token_plan and token_plan.get("date") == today:
-            saved_plan = token_plan
-            if qp_first("ebplan"):
-                clear_query_key("ebplan")
+        from src.db_config import postgres_enabled
+
+        if not postgres_enabled():
+            token_plan = plan_from_query_token()
+            if token_plan and token_plan.get("date") == today:
+                saved_plan = token_plan
+                if qp_first("ebplan"):
+                    clear_query_key("ebplan")
 
     if saved_plan:
         _apply_saved_plan(saved_plan)

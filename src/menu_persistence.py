@@ -67,11 +67,18 @@ def persist_menu_record(
     sync_browser: bool = True,
 ) -> None:
     """Write dish to user archive + menu_db (+ optional browser backup)."""
+    from src.db_config import postgres_enabled
+
     user_key = plan_user_key()
     if not user_key:
         return
     clean = _menu_row_dict(row)
     if not clean.get("menu_id") or not clean.get("menu_name"):
+        return
+    if postgres_enabled():
+        from src.pg_store import pg_upsert_user_menu
+
+        pg_upsert_user_menu(clean, source=source)
         return
     _upsert_user_archive(clean, user_key=user_key, source=source)
     _upsert_menu_db(clean)
@@ -83,6 +90,12 @@ def persist_menu_record(
 
 def find_menu_by_name(name: str) -> dict[str, str] | None:
     """Return existing dish by exact menu_name (menu_db + user archive)."""
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_find_menu_by_name
+
+        return pg_find_menu_by_name(name)
     q = name.strip()
     if not q:
         return None
@@ -102,6 +115,12 @@ def find_menu_by_name(name: str) -> dict[str, str] | None:
 
 
 def load_user_menu_archive(user_key: str | None = None) -> pd.DataFrame:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        from src.pg_store import pg_load_user_menus
+
+        return pg_load_user_menus(user_key)
     uk = user_key or plan_user_key()
     df = _read_csv(USER_MENUS_FILE, USER_MENUS_COLUMNS)
     if df.empty or not uk:
@@ -175,6 +194,11 @@ def apply_menus_blob(records: list[dict[str, Any]]) -> int:
 
 
 def ensure_user_menus_rehydrated() -> None:
+    from src.db_config import postgres_enabled
+
+    if postgres_enabled():
+        st.session_state._user_menus_rehydrated = True
+        return
     if st.session_state.get("_user_menus_rehydrated"):
         return
     from src.menu_bootstrap import menus_from_query_token

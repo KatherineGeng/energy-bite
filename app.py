@@ -14,7 +14,6 @@ from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_heade
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
 from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
-from src.client_profile import sync_profile_from_url
 from src.profile_bootstrap import restore_profile_from_browser
 from src.query_nav import qp_first
 from src.theme import inject_theme_assets
@@ -77,16 +76,24 @@ if "poster_history" not in st.session_state:
 
 VALID_PAGES = {"morning", "night", "export", "mine", "admin"}
 apply_query_nav(VALID_PAGES)
-restore_profile_from_browser()
-sync_profile_from_url()
 
-from src.user_vault import ensure_vault_synced
-from src.plan_bootstrap import restore_plan_from_browser
-from src.menu_bootstrap import restore_menus_from_browser
+from src.db_config import postgres_enabled
 
-ensure_vault_synced()
-restore_plan_from_browser()
-restore_menus_from_browser()
+if postgres_enabled():
+    from src.db_auth import restore_session_user
+
+    restore_session_user()
+else:
+    sync_profile_from_url()
+    restore_profile_from_browser()
+
+    from src.user_vault import ensure_vault_synced
+    from src.plan_bootstrap import restore_plan_from_browser
+    from src.menu_bootstrap import restore_menus_from_browser
+
+    ensure_vault_synced()
+    restore_plan_from_browser()
+    restore_menus_from_browser()
 
 _page = st.session_state.current_page
 _is_admin = _page == "admin" or qp_first("nav") == "admin"
