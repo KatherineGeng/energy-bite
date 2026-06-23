@@ -640,55 +640,12 @@ def _apply_meal_query_actions() -> None:
         st.rerun()
 
 
-def _use_streamlit_meal_actions() -> bool:
-    from src.db_config import postgres_enabled
-
-    return postgres_enabled()
-
-
-def _render_meal_action_buttons(
-    meal_type: str,
-    items: list[tuple[str, str, str | None]],
-) -> None:
-    cols = st.columns(len(items))
-    for col, (act, label, menu_id) in zip(cols, items, strict=True):
-        with col:
-            key = f"ma_{act}_{meal_type}_{menu_id or 'none'}"
-            if act == "remove" and menu_id:
-                st.button(
-                    label,
-                    key=key,
-                    use_container_width=True,
-                    on_click=_on_remove_dish,
-                    kwargs={"meal_type": meal_type, "menu_id": menu_id},
-                )
-            elif act == "manual":
-                st.button(
-                    label,
-                    key=key,
-                    use_container_width=True,
-                    on_click=_on_open_manual,
-                    kwargs={"meal_type": meal_type},
-                )
-            elif act == "library":
-                st.button(
-                    label,
-                    key=key,
-                    use_container_width=True,
-                    on_click=_on_open_library,
-                    kwargs={"meal_type": meal_type},
-                )
-
-
 def _render_meal_toolbar_items(
     meal_type: str,
     items: list[tuple[str, str, str | None]],
 ) -> None:
     if items:
-        if _use_streamlit_meal_actions():
-            _render_meal_action_buttons(meal_type, items)
-        else:
-            render_meal_action_row(meal_type, items)
+        render_meal_action_row(meal_type, items)
 
 
 def _render_meal_toolbar(
@@ -700,7 +657,7 @@ def _render_meal_toolbar(
     show_library: bool = False,
     key_suffix: str = "row",
 ) -> None:
-    """HTML link row — horizontal on mobile Safari (plan persisted to CSV on reload)."""
+    """HTML link row — horizontal on mobile Safari."""
     del key_suffix
     items: list[tuple[str, str, str | None]] = []
     if show_remove and menu_id:
@@ -710,10 +667,7 @@ def _render_meal_toolbar(
     if show_library:
         items.append(("library", "菜单库添加", None))
     if items:
-        if _use_streamlit_meal_actions():
-            _render_meal_action_buttons(meal_type, items)
-        else:
-            render_meal_action_row(meal_type, items)
+        render_meal_action_row(meal_type, items)
 
 
 def _render_meal_sections(
@@ -770,16 +724,9 @@ def _render_meal_sections(
                     row,
                     idx=idx,
                     menu_id=menu_id,
-                    show_remove=not locked and multi and not _use_streamlit_meal_actions(),
+                    show_remove=not locked and multi,
                     ai_fresh=menu_id in ai_fresh_ids,
                 )
-                if not locked and multi and _use_streamlit_meal_actions():
-                    st.button(
-                        "移除",
-                        key=f"hdr_rm_{meal_type}_{menu_id}",
-                        on_click=_on_remove_dish,
-                        kwargs={"meal_type": meal_type, "menu_id": menu_id},
-                    )
 
                 tags_str = str(row.get("energy_tags", "")).replace("·", " · ")
                 prep = f"⏱ {row['prep_minutes']} min"
@@ -812,35 +759,8 @@ def _on_unlock_plan() -> None:
     _persist_plan(plan, confirmed=False)
 
 
-def _render_bottom_action_buttons(*, locked: bool) -> None:
-    with st.container(key="eb_bottom_actions"):
-        cols = st.columns(3)
-        with cols[0]:
-            if st.button("营养覆盖", key="bottom_cov", use_container_width=True):
-                _toggle_coverage_table()
-        with cols[1]:
-            confirm_label = "重新编辑" if locked else "确认今日菜单"
-            if st.button(
-                confirm_label,
-                key="bottom_confirm",
-                type="primary" if not locked else "secondary",
-                use_container_width=True,
-            ):
-                if locked:
-                    _on_unlock_plan()
-                else:
-                    with st.spinner("正在保存…"):
-                        _confirm_today_plan()
-        with cols[2]:
-            if st.button("收藏菜单", key="bottom_fav", use_container_width=True):
-                _on_favorite_menu()
-
-
 def _render_bottom_action_row(*, locked: bool) -> None:
-    """Three horizontal HTML links — mobile Safari safe (CSV mode)."""
-    if _use_streamlit_meal_actions():
-        _render_bottom_action_buttons(locked=locked)
-        return
+    """Three horizontal HTML links — mobile Safari safe."""
     page = st.session_state.get("current_page", "morning")
     base = append_nav_params(f"?nav={quote(page)}")
     confirm_label = "重新编辑" if locked else "确认今日菜单"
