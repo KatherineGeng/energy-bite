@@ -172,11 +172,21 @@ def init_database(force: bool = False) -> None:
     if postgres_enabled():
         import streamlit as st
 
-        from src.pg_store import init_postgres_schema, seed_global_catalog
+        from src.pg_store import seed_global_catalog
 
         if force or not st.session_state.get("_pg_inited"):
-            init_postgres_schema()
-            seed_global_catalog()
+            try:
+                seed_global_catalog()
+            except Exception as exc:
+                st.error("无法连接 Supabase 数据库，请检查 Streamlit Secrets。")
+                st.markdown(
+                    "**Streamlit Cloud 请使用 Transaction pooler（端口 6543），不要用直连 db.xxx:5432。**\n\n"
+                    "Supabase → Project Settings → Database → Connection string → **Transaction pooler** → URI，"
+                    "整段粘贴为 `SUPABASE_DB_URL`，或分别填写 `SUPABASE_DB_POOLER_HOST`、"
+                    "`SUPABASE_PROJECT_REF`、`SUPABASE_DB_PASSWORD`。"
+                )
+                st.caption(f"技术信息：{type(exc).__name__}")
+                st.stop()
             st.session_state._pg_inited = True
         return
 

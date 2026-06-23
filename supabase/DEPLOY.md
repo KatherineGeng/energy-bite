@@ -2,50 +2,45 @@
 
 ## 1. 在 Supabase 建表
 
-**方式 A — SQL 编辑器（推荐）**
+1. 打开 [SQL Editor](https://supabase.com/dashboard/project/yzhsrqjxzkadsvbzcbqz/sql/new)
+2. 粘贴 [`schema.sql`](schema.sql) 全部内容
+3. 出现 RLS 提示时选 **Run without RLS**（服务端直连，不用 anon key）
 
-1. 打开 [Supabase Dashboard](https://supabase.com/dashboard/project/yzhsrqjxzkadsvbzcbqz) → **SQL Editor**
-2. 粘贴并执行仓库内 [`supabase/schema.sql`](../supabase/schema.sql) 的全部内容
-3. 首次启动 App 时会自动写入种子食材与系统菜单（12 道）
+## 2. Streamlit Cloud Secrets（重要）
 
-**方式 B — 本地脚本**
+**Streamlit Cloud 不能稳定使用直连 `db.xxx.supabase.co:5432`**，必须用 **Transaction pooler（6543）**。
 
-```bash
-pip install psycopg2-binary
-# 在 .streamlit/secrets.toml 填好数据库连接后：
-python scripts/init_supabase.py
-```
+### 方式 A — 一整条 URI（推荐）
 
-## 2. Streamlit Cloud Secrets
-
-在 [Streamlit Cloud](https://share.streamlit.io/) → 应用 → **Settings → Secrets** 添加：
+Supabase → **Project Settings → Database → Connection string** → 选 **Transaction pooler** → **URI**，复制整段：
 
 ```toml
-SUPABASE_DB_HOST = "db.yzhsrqjxzkadsvbzcbqz.supabase.co"
-SUPABASE_DB_PASSWORD = "你的数据库密码"
-SUPABASE_DB_USER = "postgres"
-SUPABASE_DB_NAME = "postgres"
-SUPABASE_DB_PORT = "5432"
+SUPABASE_DB_URL = "postgresql://postgres.yzhsrqjxzkadsvbzcbqz:你的密码@aws-0-xxxxx.pooler.supabase.com:6543/postgres"
 
-ADMIN_PASSWORD = "你的管理后台密码"
-DEEPSEEK_API_KEY = "可选"
+ADMIN_PASSWORD = "管理后台密码"
 ```
 
-密码在 Supabase → **Project Settings → Database → Database password**（可 Reset）。
+### 方式 B — 分开填写
 
-配置 Secrets 后，App 会：
+```toml
+SUPABASE_PROJECT_REF = "yzhsrqjxzkadsvbzcbqz"
+SUPABASE_DB_POOLER_HOST = "aws-0-xxxxx.pooler.supabase.com"
+SUPABASE_DB_POOLER_PORT = "6543"
+SUPABASE_DB_USER = "postgres.yzhsrqjxzkadsvbzcbqz"
+SUPABASE_DB_PASSWORD = "你的密码"
+SUPABASE_DB_NAME = "postgres"
+```
 
-- 使用 **昵称 + 4 位 PIN** 登录（多设备同账号）
-- 菜单、今日餐单写入 Supabase
-- **不再**使用 localStorage 跳转（无 vault 闪屏）
+`POOLER_HOST` 和 URI 里的 region 以 Supabase 控制台显示的为准，不要猜。
 
-未配置 Supabase 时，仍回退到 4.x CSV + 浏览器备份模式。
+密码：**Project Settings → Database → Database password**（可 Reset）。
 
-## 3. 用户登录
+## 3. 使用
 
-- **新用户**：注册页 → 昵称、性别、年龄段、4 位 PIN
-- **换设备**：登录页 → 相同昵称 + PIN
+- **注册**：昵称 + 性别 + 年龄 + 4 位 PIN  
+- **登录**（换设备）：相同昵称 + PIN  
+- 配置 Supabase 后不再走 localStorage 跳转  
 
-## 4. 管理员导出
+## 4. 管理员
 
-管理后台 → 用户信息 / 菜单菜品 → **下载 CSV**。
+管理页 → 下载用户/菜单 **CSV**。
