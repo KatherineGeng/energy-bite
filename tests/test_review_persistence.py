@@ -27,3 +27,25 @@ def test_collect_review_draft_from_session(monkeypatch):
     assert payload["day_mood"] == 3
     assert payload["dishes"]["MENU_001"]["operation"] == 4
     assert payload["dishes"]["MENU_001"]["favorited"] is True
+
+
+def test_merge_review_drafts_keeps_prior_scores():
+    existing = {
+        "day_mood": None,
+        "day_energy": None,
+        "fav_full_day": False,
+        "dishes": {"MENU_001": {"operation": 4}},
+        "completed": False,
+    }
+    fresh = {
+        "day_mood": None,
+        "day_energy": None,
+        "fav_full_day": False,
+        "dishes": {"MENU_001": {"nps": 5}},
+        "completed": False,
+    }
+    from src.review_persistence import _merge_review_drafts
+
+    merged = _merge_review_drafts(existing, fresh, ["MENU_001"])
+    assert merged["dishes"]["MENU_001"]["operation"] == 4
+    assert merged["dishes"]["MENU_001"]["nps"] == 5

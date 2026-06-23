@@ -89,8 +89,36 @@ def apply_review_draft_to_session(day: str, menu_ids: list[str]) -> None:
             st.session_state[fav_key] = bool(dish["favorited"])
 
 
+def _merge_review_drafts(existing: dict, fresh: dict, menu_ids: list[str]) -> dict:
+    dishes: dict[str, dict] = dict(existing.get("dishes") or {})
+    for menu_id in menu_ids:
+        prev = dict(dishes.get(menu_id) or {})
+        incoming = (fresh.get("dishes") or {}).get(menu_id) or {}
+        merged = {**prev, **incoming}
+        if merged:
+            dishes[menu_id] = merged
+    day_mood = fresh.get("day_mood")
+    if day_mood is None:
+        day_mood = existing.get("day_mood")
+    day_energy = fresh.get("day_energy")
+    if day_energy is None:
+        day_energy = existing.get("day_energy")
+    fav_full_day = fresh.get("fav_full_day")
+    if fav_full_day is None and "fav_full_day" in existing:
+        fav_full_day = existing.get("fav_full_day")
+    return {
+        "day_mood": day_mood,
+        "day_energy": day_energy,
+        "fav_full_day": bool(fav_full_day) if fav_full_day is not None else False,
+        "dishes": dishes,
+        "completed": False,
+    }
+
+
 def persist_review_draft(day: str, menu_ids: list[str], *, completed: bool = False) -> None:
-    payload = collect_review_draft_from_session(menu_ids)
+    existing = load_review_draft(day) or {}
+    fresh = collect_review_draft_from_session(menu_ids)
+    payload = _merge_review_drafts(existing, fresh, menu_ids)
     payload["completed"] = completed
     save_review_draft(day, payload)
 
