@@ -70,22 +70,23 @@ def apply_review_draft_to_session(day: str, menu_ids: list[str]) -> None:
     draft = load_review_draft(day)
     if not draft:
         return
-    day_mood = draft.get("day_mood")
-    if day_mood is not None:
-        st.session_state.review_day_mood = int(day_mood)
-    day_energy = draft.get("day_energy")
-    if day_energy is not None:
-        st.session_state.review_day_energy = int(day_energy)
-    if "fav_full_day" in draft:
+    if st.session_state.get("review_day_mood") is None and draft.get("day_mood") is not None:
+        st.session_state.review_day_mood = int(draft["day_mood"])
+    if st.session_state.get("review_day_energy") is None and draft.get("day_energy") is not None:
+        st.session_state.review_day_energy = int(draft["day_energy"])
+    if "review_fav_full_day" not in st.session_state and "fav_full_day" in draft:
         st.session_state.review_fav_full_day = bool(draft.get("fav_full_day"))
     for menu_id in menu_ids:
         dish = (draft.get("dishes") or {}).get(menu_id) or {}
-        if dish.get("operation") is not None:
-            st.session_state[f"review_{menu_id}_operation"] = int(dish["operation"])
-        if dish.get("nps") is not None:
-            st.session_state[f"review_{menu_id}_nps"] = int(dish["nps"])
-        if dish.get("favorited") is not None:
-            st.session_state[f"review_{menu_id}_fav_dish"] = bool(dish["favorited"])
+        op_key = f"review_{menu_id}_operation"
+        nps_key = f"review_{menu_id}_nps"
+        fav_key = f"review_{menu_id}_fav_dish"
+        if st.session_state.get(op_key) is None and dish.get("operation") is not None:
+            st.session_state[op_key] = int(dish["operation"])
+        if st.session_state.get(nps_key) is None and dish.get("nps") is not None:
+            st.session_state[nps_key] = int(dish["nps"])
+        if st.session_state.get(fav_key) is None and dish.get("favorited") is not None:
+            st.session_state[fav_key] = bool(dish["favorited"])
 
 
 def persist_review_draft(day: str, menu_ids: list[str], *, completed: bool = False) -> None:

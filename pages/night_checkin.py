@@ -12,6 +12,7 @@ from src.database import (
     append_log,
     get_menu_row,
     load_favorites_dishes,
+    load_morning_context,
     remove_favorite_dish,
     save_favorite_dish,
     save_favorite_menu_set,
@@ -24,7 +25,7 @@ from src.review_persistence import (
     persist_review_draft,
 )
 from src.query_nav import pop_query_param
-from src.review_ui import render_dish_header_with_favorite, render_score_picker
+from src.review_ui import render_dish_header_with_favorite, render_score_picker_html
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
@@ -36,23 +37,45 @@ def _score_btn(x: int) -> str:
     return str(x)
 
 
+def _dish_favorited_in_db(menu_id: str, today: str) -> bool:
+    df = load_favorites_dishes()
+    if df.empty:
+        return False
+    return not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
+
+
 def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
     menu_id = pop_query_param("review_fav")
     if not menu_id:
         return
     key = f"review_{menu_id}_fav_dish"
-    current = st.session_state.get(key)
-    if current is None:
-        df = load_favorites_dishes()
-        if not df.empty:
-            current = not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
-        else:
-            current = False
-    st.session_state[key] = not bool(current)
-    if st.session_state[key]:
+    currently = _dish_favorited_in_db(menu_id, today)
+    new_val = not currently
+    st.session_state[key] = new_val
+    if new_val:
         save_favorite_dish(menu_id, today)
     else:
         remove_favorite_dish(menu_id, today)
+    persist_review_draft(today, menu_ids)
+
+
+def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
+    raw = pop_query_param("review_score")
+    if not raw:
+        return
+    parts = raw.split(":", 2)
+    if len(parts) != 3:
+        return
+    menu_id, field, score_text = parts
+    if field not in ("operation", "nps"):
+        return
+    try:
+        score = int(score_text)
+    except ValueError:
+        return
+    if score < 1 or score > 5:
+        return
+    st.session_state[f"review_{menu_id}_{field}"] = score
     persist_review_draft(today, menu_ids)
 
 
@@ -140,48 +163,45 @@ def _inject_review_card_css() -> None:
             font-size: 1.15rem !important;
             line-height: 1 !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) {{
+        .eb-score-row {{
+            display: flex !important;
+            flex-direction: row !important;
             flex-wrap: nowrap !important;
-            gap: 0.2rem !important;
+            align-items: stretch !important;
+            gap: 0.28rem !important;
             width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) > [data-testid="column"] {{
+        a.eb-score-chip {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            width: 0 !important;
-            padding: 0 !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) .stButton {{
-            width: 100% !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(.stButton) .stButton > button {{
-            min-height: 2.35rem !important;
-            padding: 0.3rem 0 !important;
-            font-size: 0.92rem !important;
-            width: 100% !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] > div {{
-            display: grid !important;
-            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-            gap: 0 !important;
-            width: 100% !important;
-        }}
-        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label {{
-            min-width: 0 !important;
-            padding: 0 !important;
-            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
             justify-content: center !important;
-            gap: 0.1rem !important;
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            text-decoration: none !important;
+            -webkit-tap-highlight-color: transparent;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label p {{
-            font-size: 0.78rem !important;
-            margin: 0 !important;
+        a.eb-score-chip.selected {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stRadio"] label > div:first-child {{
-            width: 1.125rem !important;
-            height: 1.125rem !important;
-            min-width: 1.125rem !important;
-            flex-shrink: 0 !important;
+        .eb-morning-saved-banner {{
+            background: rgba(46, 125, 96, 0.1);
+            border: 1px solid rgba(46, 125, 96, 0.35);
+            border-radius: 10px;
+            padding: 0.55rem 0.7rem;
+            margin: 0.35rem 0 0.65rem;
+            color: #1E5E46;
+            font-size: 0.92rem;
+            line-height: 1.45;
         }}
         .eb-morning-block [data-testid="stWidgetLabel"] {{
             display: none !important;
@@ -228,10 +248,42 @@ def _inject_review_card_css() -> None:
     )
 
 
+def _morning_saved(today_iso: str) -> bool:
+    if st.session_state.get("morning_context_loaded") == today_iso:
+        return True
+    return load_morning_context(today_iso) is not None
+
+
+def _morning_saved_summary(today_iso: str) -> dict:
+    inputs = st.session_state.get("morning_inputs") or {}
+    if inputs.get("sleep") and inputs.get("load") and inputs.get("meal_count"):
+        return inputs
+    ctx = load_morning_context(today_iso)
+    return ctx or {}
+
+
 def _render_morning_section(today_iso: str) -> None:
     apply_morning_context_from_disk(today_iso)
     section_title("fa-sun", "晨间三问")
     st.caption(morning_greeting())
+
+    saved = _morning_saved(today_iso)
+    if saved:
+        summary = _morning_saved_summary(today_iso)
+        sleep_txt = summary.get("sleep", "—")
+        load_txt = summary.get("load", "—")
+        meal_txt = summary.get("meal_count", "—")
+        st.markdown(
+            f'<div class="eb-morning-saved-banner">'
+            f"✓ <strong>今日晨间记录已保存</strong><br>"
+            f"睡眠：{sleep_txt} · 消耗：{load_txt} · 餐数：{meal_txt} 餐<br>"
+            f"<span style='opacity:0.85'>修改下方选项会自动更新，无需重复保存。</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("请选择下方三项，选择后会自动保存到云端。")
+
     st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
 
     st.markdown('<p class="eb-morning-q-title">一、昨晚睡眠状态</p>', unsafe_allow_html=True)
@@ -269,10 +321,11 @@ def _render_morning_section(today_iso: str) -> None:
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.button("保存晨间记录", type="secondary", use_container_width=True, key="save_morning_context"):
-        autosave_morning_context(today_iso)
-        st.session_state.record_saved_flash = True
-        st.rerun()
+    if not saved:
+        if st.button("保存晨间记录", type="secondary", use_container_width=True, key="save_morning_context"):
+            autosave_morning_context(today_iso)
+            st.session_state.record_saved_flash = True
+            st.rerun()
 
     if st.session_state.pop("record_saved_flash", False):
         st.success("晨间记录已保存 · 可前往「菜单」生成今日餐食。")
@@ -286,6 +339,7 @@ def _render_evening_section(confirmed: dict) -> None:
     section_title("fa-utensils", "今日餐食评价")
 
     _apply_review_fav_toggle(today, menu_ids)
+    _apply_review_score_pick(today, menu_ids)
 
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
@@ -299,21 +353,23 @@ def _render_evening_section(confirmed: dict) -> None:
         with st.container(border=True):
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
-            render_dish_header_with_favorite(meal_type, dish_name, menu_id)
+            render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
 
-            render_score_picker(
+            render_score_picker_html(
                 "操作从容度 (1-5分)",
                 "1：极其匆忙 → 5：优雅享受",
                 f"review_{menu_id}_operation",
-                btn_prefix=f"review_{menu_id}_op",
-                on_pick=lambda d=today, ids=menu_ids: on_review_field_change(d, ids),
+                menu_id,
+                "operation",
+                today,
             )
-            render_score_picker(
+            render_score_picker_html(
                 "这道菜我还想再吃一次 (1-5分)",
                 "1：极不赞成 → 5：极度赞成",
                 f"review_{menu_id}_nps",
-                btn_prefix=f"review_{menu_id}_nps",
-                on_pick=lambda d=today, ids=menu_ids: on_review_field_change(d, ids),
+                menu_id,
+                "nps",
+                today,
             )
 
     st.checkbox(

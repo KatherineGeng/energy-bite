@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Bump this on every deploy so users can verify Streamlit Cloud picked up the build.
-APP_VERSION = "5.0.14"
+APP_VERSION = "5.0.15"
 
 GENDER_OPTIONS = ["女", "男", "其他"]
 AGE_GROUP_OPTIONS = ["40岁以下", "40-49岁", "50-59岁", "60岁及以上"]
