@@ -38,7 +38,38 @@ def sync_session_date() -> str:
     return today
 
 
-def clear_menu_session_state() -> None:
+def clear_hydration_markers() -> None:
+    """Reset daily hydrate flags (logout / profile switch)."""
+    for key in (
+        "_hydrated_date",
+        "_hydrated_user",
+        "morning_context_loaded",
+        "morning_sleep",
+        "morning_load",
+        "morning_meal_count",
+        "morning_inputs",
+    ):
+        st.session_state.pop(key, None)
+
+
+def apply_morning_context_from_disk(day: str | None = None) -> bool:
+    """Load saved morning answers into session widget keys."""
+    target = day or st.session_state.get("today_date", date.today().isoformat())
+    ctx = load_morning_context(target)
+    if not ctx:
+        return False
+    st.session_state.morning_sleep = ctx["sleep"]
+    st.session_state.morning_load = ctx["load"]
+    st.session_state.morning_meal_count = int(ctx["meal_count"])
+    st.session_state.morning_inputs = {
+        "sleep": ctx["sleep"],
+        "load": ctx["load"],
+        "meal_count": int(ctx["meal_count"]),
+    }
+    st.session_state.morning_context_loaded = target
+    return True
+
+
     """Reset menu-related session when user profile is not ready."""
     st.session_state.meal_plan = empty_meal_plan()
     st.session_state.current_day_menus = []
@@ -119,6 +150,7 @@ def hydrate_today_state() -> None:
         and st.session_state.get("_hydrated_user") == user_key
     ):
         ensure_today_plan_persisted()
+        apply_morning_context_from_disk(today)
         return
 
     saved_plan = load_daily_meal_plan(today)
@@ -154,6 +186,9 @@ def hydrate_today_state() -> None:
             "meal_count": int(ctx["meal_count"]),
         }
         st.session_state.morning_context_loaded = today
+    elif st.session_state.get("morning_context_loaded") != today:
+        for key in ("morning_sleep", "morning_load", "morning_meal_count", "morning_inputs"):
+            st.session_state.pop(key, None)
 
     st.session_state._hydrated_date = today
     st.session_state._hydrated_user = user_key

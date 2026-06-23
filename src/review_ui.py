@@ -2,32 +2,34 @@
 
 from __future__ import annotations
 
-from urllib.parse import quote
+from collections.abc import Callable
 
 import streamlit as st
 
-from src.nav_params import append_nav_params
 
-
-def dish_favorite_html(menu_id: str) -> str:
-    """Inline heart on the dish title row — no button box."""
+def render_dish_header_with_favorite(
+    meal_type: str,
+    dish_name: str,
+    menu_id: str,
+    *,
+    on_toggle: Callable[[], None],
+) -> None:
+    """Dish title row + inline heart/收藏 toggle (Streamlit button, no page reload)."""
     key = f"review_{menu_id}_fav_dish"
     active = bool(st.session_state.get(key, False))
     heart = "❤️" if active else "🤍"
-    page = st.session_state.get("current_page", "night")
-    href = append_nav_params(f"?nav={quote(page)}&review_fav={quote(menu_id)}")
-    active_cls = " active" if active else ""
-    return (
-        f'<a class="eb-fav-link{active_cls}" href="{href}" aria-label="收藏">'
-        f'<span class="eb-fav-heart">{heart}</span></a>'
-    )
 
-
-def render_dish_header_with_favorite(meal_type: str, dish_name: str, menu_id: str) -> None:
-    fav = dish_favorite_html(menu_id)
-    st.markdown(
-        f'<div class="eb-dish-header-line">'
-        f'<span class="eb-dish-name">{meal_type}：{dish_name}</span>'
-        f"{fav}</div>",
-        unsafe_allow_html=True,
-    )
+    col_title, col_fav = st.columns([7, 3], gap="small")
+    with col_title:
+        st.markdown(
+            f'<span class="eb-dish-name">{meal_type}：{dish_name}</span>',
+            unsafe_allow_html=True,
+        )
+    with col_fav:
+        st.button(
+            f"{heart} 收藏",
+            key=f"fav_btn_{menu_id}",
+            type="primary" if active else "secondary",
+            on_click=on_toggle,
+            use_container_width=True,
+        )

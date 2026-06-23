@@ -17,9 +17,8 @@ from src.database import (
     save_favorite_menu_set,
     save_morning_context,
 )
-from src.query_nav import pop_query_param
 from src.review_ui import render_dish_header_with_favorite
-from src.session_hydrate import get_confirmed_plan
+from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
 
@@ -30,19 +29,20 @@ def _score_btn(x: int) -> str:
     return str(x)
 
 
-def _apply_review_fav_toggle(today: str) -> None:
-    menu_id = pop_query_param("review_fav")
-    if not menu_id:
-        return
+def _toggle_dish_favorite(menu_id: str, today: str) -> None:
     key = f"review_{menu_id}_fav_dish"
-    st.session_state[key] = not bool(st.session_state.get(key, False))
+    current = st.session_state.get(key)
+    if current is None:
+        df = load_favorites_dishes()
+        if not df.empty:
+            current = not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
+        else:
+            current = False
+    st.session_state[key] = not bool(current)
     if st.session_state[key]:
         save_favorite_dish(menu_id, today)
-        st.toast("已收藏此菜品", icon="❤️")
     else:
         remove_favorite_dish(menu_id, today)
-        st.toast("已取消收藏")
-    st.rerun()
 
 
 def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
@@ -129,6 +129,24 @@ def _inject_review_card_css() -> None:
             font-size: 1.25rem !important;
             line-height: 1 !important;
         }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child .stButton > button {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #64748B !important;
+            font-size: 0.92rem !important;
+            padding: 0.1rem 0.2rem !important;
+            min-height: 2rem !important;
+            height: auto !important;
+            justify-content: flex-end !important;
+            white-space: nowrap !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child .stButton > button[kind="primary"] {{
+            color: #EF4444 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child .stButton > button p {{
+            font-size: 0.92rem !important;
+        }}
         .eb-score-radio {{
             width: 100% !important;
             overflow: hidden !important;
@@ -148,21 +166,28 @@ def _inject_review_card_css() -> None:
         .eb-score-radio div[data-testid="stRadio"] label {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            max-width: 20% !important;
-            padding: 0.1rem 0 !important;
+            max-width: none !important;
+            padding: 0 !important;
             margin: 0 !important;
+            gap: 0.08rem !important;
             justify-content: center !important;
-            font-size: 0.72rem !important;
+            font-size: 0.78rem !important;
         }}
         .eb-score-radio div[data-testid="stRadio"] label p {{
-            font-size: 0.72rem !important;
+            font-size: 0.78rem !important;
             margin: 0 !important;
+            padding: 0 !important;
         }}
         .eb-score-radio div[data-testid="stRadio"] label > div:first-child {{
-            width: 0.85rem !important;
-            height: 0.85rem !important;
-            min-width: 0.85rem !important;
-            margin-right: 0.1rem !important;
+            width: 1.125rem !important;
+            height: 1.125rem !important;
+            min-width: 1.125rem !important;
+            flex-shrink: 0 !important;
+            margin-right: 0.06rem !important;
+        }}
+        .eb-score-radio div[data-testid="stRadio"] label > div:first-child > div {{
+            width: 1.125rem !important;
+            height: 1.125rem !important;
         }}
         .eb-morning-block [data-testid="stWidgetLabel"] {{
             display: none !important;
@@ -210,6 +235,7 @@ def _inject_review_card_css() -> None:
 
 
 def _render_morning_section(today_iso: str) -> None:
+    apply_morning_context_from_disk(today_iso)
     section_title("fa-sun", "晨间三问")
     st.caption(morning_greeting())
     st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
@@ -276,7 +302,12 @@ def _render_evening_section(confirmed: dict) -> None:
         with st.container(border=True):
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
-            render_dish_header_with_favorite(meal_type, dish_name, menu_id)
+            render_dish_header_with_favorite(
+                meal_type,
+                dish_name,
+                menu_id,
+                on_toggle=lambda m=menu_id, d=today: _toggle_dish_favorite(m, d),
+            )
 
             st.markdown('<p class="eb-score-label">操作从容度 (1-5分)</p>', unsafe_allow_html=True)
             st.caption("1：极其匆忙 → 5：优雅享受")
@@ -379,7 +410,6 @@ def _render_evening_section(confirmed: dict) -> None:
 
 def render() -> None:
     today_iso = st.session_state.get("today_date", date.today().isoformat())
-    _apply_review_fav_toggle(today_iso)
     _inject_review_card_css()
     _render_morning_section(today_iso)
 

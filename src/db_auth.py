@@ -141,6 +141,9 @@ def current_profile() -> dict[str, str] | None:
 def logout_user() -> None:
     st.session_state.pop(_SESSION_USER_ID, None)
     st.session_state.pop(_SESSION_PROFILE, None)
+    from src.session_hydrate import clear_hydration_markers
+
+    clear_hydration_markers()
     try:
         if _QUERY_USER_KEY in st.query_params:
             del st.query_params[_QUERY_USER_KEY]
