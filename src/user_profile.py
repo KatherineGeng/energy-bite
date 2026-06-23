@@ -15,7 +15,9 @@ def profile_complete() -> bool:
     if postgres_enabled():
         from src.db_auth import current_user_id, restore_session_user
 
-        return bool(current_user_id()) and restore_session_user()
+        if not restore_session_user():
+            return False
+        return bool(current_user_id())
 
     sync_profile_from_url()
     token = profile_token()

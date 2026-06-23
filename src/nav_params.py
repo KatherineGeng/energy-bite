@@ -11,6 +11,15 @@ from src.client_profile import profile_query_suffix
 
 def append_nav_params(href: str) -> str:
     suffix = profile_query_suffix()
+    try:
+        from src.db_config import postgres_enabled
+
+        if postgres_enabled():
+            from src.db_auth import auth_query_suffix
+
+            suffix += auth_query_suffix()
+    except Exception:
+        pass
     if not suffix:
         return href
     return href + suffix

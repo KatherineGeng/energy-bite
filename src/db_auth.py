@@ -9,9 +9,11 @@ from typing import Any
 import streamlit as st
 
 from src.db_connection import pg_cursor
+from src.query_nav import qp_first
 
 _SESSION_USER_ID = "eb_user_id"
 _SESSION_PROFILE = "eb_profile"
+_QUERY_USER_KEY = "u"
 
 
 def _hash_pin(pin: str, salt: str | None = None) -> str:
@@ -92,14 +94,16 @@ def _bind_session(profile: dict[str, str]) -> None:
     try:
         if "ebp" in st.query_params:
             del st.query_params["ebp"]
+        st.query_params[_QUERY_USER_KEY] = profile["user_id"]
     except Exception:
         pass
 
 
 def restore_session_user() -> bool:
-    uid = st.session_state.get(_SESSION_USER_ID)
+    uid = st.session_state.get(_SESSION_USER_ID) or qp_first(_QUERY_USER_KEY)
     if not uid:
         return False
+    st.session_state[_SESSION_USER_ID] = str(uid)
     profile = st.session_state.get(_SESSION_PROFILE)
     if profile and str(profile.get("user_id")) == str(uid):
         return True
@@ -116,6 +120,14 @@ def restore_session_user() -> bool:
     return True
 
 
+def auth_query_suffix() -> str:
+    """Keep user id on HTML links (mobile full-page navigation)."""
+    from urllib.parse import quote
+
+    uid = current_user_id() or qp_first(_QUERY_USER_KEY) or ""
+    return f"&{_QUERY_USER_KEY}={quote(str(uid))}" if uid else ""
+
+
 def current_user_id() -> str:
     return str(st.session_state.get(_SESSION_USER_ID, "") or "")
 
@@ -129,6 +141,11 @@ def current_profile() -> dict[str, str] | None:
 def logout_user() -> None:
     st.session_state.pop(_SESSION_USER_ID, None)
     st.session_state.pop(_SESSION_PROFILE, None)
+    try:
+        if _QUERY_USER_KEY in st.query_params:
+            del st.query_params[_QUERY_USER_KEY]
+    except Exception:
+        pass
 
 
 def nickname_exists(nickname: str) -> bool:

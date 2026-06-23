@@ -622,12 +622,55 @@ def _apply_meal_query_actions() -> None:
         st.rerun()
 
 
+def _use_streamlit_meal_actions() -> bool:
+    from src.db_config import postgres_enabled
+
+    return postgres_enabled()
+
+
+def _render_meal_action_buttons(
+    meal_type: str,
+    items: list[tuple[str, str, str | None]],
+) -> None:
+    cols = st.columns(len(items))
+    for col, (act, label, menu_id) in zip(cols, items, strict=True):
+        with col:
+            key = f"ma_{act}_{meal_type}_{menu_id or 'none'}"
+            if act == "remove" and menu_id:
+                st.button(
+                    label,
+                    key=key,
+                    use_container_width=True,
+                    on_click=_on_remove_dish,
+                    kwargs={"meal_type": meal_type, "menu_id": menu_id},
+                )
+            elif act == "manual":
+                st.button(
+                    label,
+                    key=key,
+                    use_container_width=True,
+                    on_click=_on_open_manual,
+                    kwargs={"meal_type": meal_type},
+                )
+            elif act == "library":
+                st.button(
+                    label,
+                    key=key,
+                    use_container_width=True,
+                    on_click=_on_open_library,
+                    kwargs={"meal_type": meal_type},
+                )
+
+
 def _render_meal_toolbar_items(
     meal_type: str,
     items: list[tuple[str, str, str | None]],
 ) -> None:
     if items:
-        render_meal_action_row(meal_type, items)
+        if _use_streamlit_meal_actions():
+            _render_meal_action_buttons(meal_type, items)
+        else:
+            render_meal_action_row(meal_type, items)
 
 
 def _render_meal_toolbar(
@@ -649,7 +692,10 @@ def _render_meal_toolbar(
     if show_library:
         items.append(("library", "菜单库添加", None))
     if items:
-        render_meal_action_row(meal_type, items)
+        if _use_streamlit_meal_actions():
+            _render_meal_action_buttons(meal_type, items)
+        else:
+            render_meal_action_row(meal_type, items)
 
 
 def _render_meal_sections(
@@ -706,9 +752,16 @@ def _render_meal_sections(
                     row,
                     idx=idx,
                     menu_id=menu_id,
-                    show_remove=not locked and multi,
+                    show_remove=not locked and multi and not _use_streamlit_meal_actions(),
                     ai_fresh=menu_id in ai_fresh_ids,
                 )
+                if not locked and multi and _use_streamlit_meal_actions():
+                    st.button(
+                        "移除",
+                        key=f"hdr_rm_{meal_type}_{menu_id}",
+                        on_click=_on_remove_dish,
+                        kwargs={"meal_type": meal_type, "menu_id": menu_id},
+                    )
 
                 tags_str = str(row.get("energy_tags", "")).replace("·", " · ")
                 prep = f"⏱ {row['prep_minutes']} min"

@@ -258,9 +258,15 @@ def load_ingredients() -> pd.DataFrame:
     from src.db_config import postgres_enabled
 
     if postgres_enabled():
+        import streamlit as st
+
         from src.pg_store import pg_load_ingredients
 
-        return pg_load_ingredients()
+        @st.cache_data(ttl=600, show_spinner=False)
+        def _cached() -> pd.DataFrame:
+            return pg_load_ingredients()
+
+        return _cached()
     return _read_csv(INGREDIENTS_FILE, INGREDIENTS_COLUMNS)
 
 
