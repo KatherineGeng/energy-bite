@@ -629,6 +629,8 @@ def _apply_meal_query_actions() -> None:
     mid = pop_query_param("mid")
     if not meal_act or not meal:
         return
+    if st.session_state.get("menu_locked"):
+        _on_unlock_plan()
     if meal_act == "remove" and mid:
         _on_remove_dish(meal, mid)
         st.rerun()
@@ -684,13 +686,13 @@ def _render_meal_sections(
         with st.container(border=True):
             if not menu_ids:
                 st.caption(f"{meal_type} · 暂无菜品")
+                _render_meal_toolbar(
+                    meal_type,
+                    show_manual=True,
+                    show_library=True,
+                    key_suffix="empty",
+                )
                 if not locked:
-                    _render_meal_toolbar(
-                        meal_type,
-                        show_manual=True,
-                        show_library=True,
-                        key_suffix="empty",
-                    )
                     _render_add_panel(meal_type)
                 continue
 
@@ -700,7 +702,7 @@ def _render_meal_sections(
                     if idx > 0:
                         st.divider()
                     st.caption("服务器更新后库内记录可能清空，请点「移除」后重新添加。")
-                    if not locked and len(menu_ids) > 1:
+                    if len(menu_ids) > 1:
                         href = append_nav_params(
                             f"?nav=morning&meal_act=remove&meal={quote(meal_type)}&mid={quote(menu_id)}"
                         )
@@ -724,7 +726,7 @@ def _render_meal_sections(
                     row,
                     idx=idx,
                     menu_id=menu_id,
-                    show_remove=not locked and multi,
+                    show_remove=multi,
                     ai_fresh=menu_id in ai_fresh_ids,
                 )
 
@@ -738,14 +740,13 @@ def _render_meal_sections(
                 ingredients = _ingredients_display(row, ingredient_map)
                 st.caption(f"食材：{ingredients}")
 
-            if not locked:
-                footer: list[tuple[str, str, str | None]] = [
-                    ("manual", "手工添加", None),
-                    ("library", "菜单库添加", None),
-                ]
-                if len(menu_ids) == 1:
-                    footer.insert(0, ("remove", "移除", menu_ids[0]))
-                _render_meal_toolbar_items(meal_type, footer)
+            footer: list[tuple[str, str, str | None]] = [
+                ("manual", "手工添加", None),
+                ("library", "菜单库添加", None),
+            ]
+            if len(menu_ids) == 1:
+                footer.insert(0, ("remove", "移除", menu_ids[0]))
+            _render_meal_toolbar_items(meal_type, footer)
 
             if not locked:
                 _render_add_panel(meal_type)
