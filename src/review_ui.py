@@ -1,4 +1,4 @@
-"""Review page UI helpers."""
+"""Review page UI helpers — 5.0.15 look, fragment on_click for speed."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def render_dish_header_with_favorite(
     *,
     on_toggle: Callable[[], None],
 ) -> None:
-    """Dish title + heart/收藏 on one row — Streamlit button, fragment rerun only."""
+    """Same row as 5.0.15: dish name left, heart+收藏 right (not a big button)."""
     active = dish_favorited(menu_id, today)
     heart = "❤️" if active else "🤍"
     col_title, col_fav = st.columns([7, 3], gap="small")
@@ -54,7 +54,7 @@ def render_score_picker(
     btn_prefix: str,
     on_pick: Callable[[], None] | None = None,
 ) -> None:
-    """Five score chips in one row — on_click only reruns the parent fragment."""
+    """Horizontal 1–5 chips — same layout as 5.0.15 HTML row."""
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     st.caption(caption)
     current = st.session_state.get(session_key)

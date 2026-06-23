@@ -164,45 +164,106 @@ def _inject_review_card_css() -> None:
             font-size: 1.15rem !important;
             line-height: 1 !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {{
+        /* 5.0.15 score chip look — applied to Streamlit buttons (fast on_click) */
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) {{
+            display: flex !important;
+            flex-direction: row !important;
             flex-wrap: nowrap !important;
+            align-items: stretch !important;
             gap: 0.28rem !important;
             width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) > [data-testid="column"] {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
             width: 0 !important;
             padding: 0 !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child:not(:only-child) {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) .stButton > button {{
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(5)) .stButton > button[kind="primary"] {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
+        }}
+        /* 5.0.15 favorite link look — not a full-width green button */
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
+            margin: 0 0 0.35rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:first-child {{
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:last-child {{
             flex: 0 0 auto !important;
             width: auto !important;
-            min-width: 4.5rem !important;
+            min-width: 4.8rem !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child:not(:only-child) .stButton > button {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:last-child .stButton > button {{
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
             color: #64748B !important;
             font-size: 0.92rem !important;
+            font-weight: 500 !important;
             padding: 0.1rem 0.2rem !important;
             min-height: 2rem !important;
             height: auto !important;
             justify-content: flex-end !important;
             white-space: nowrap !important;
+            width: auto !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child:not(:only-child) .stButton > button[kind="primary"] {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child):not(:has(> [data-testid="column"]:nth-child(3))) > [data-testid="column"]:last-child .stButton > button[kind="primary"] {{
             color: #EF4444 !important;
             background: transparent !important;
+            border: none !important;
         }}
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] .stButton > button {{
+        .eb-score-row {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
+        }}
+        a.eb-score-chip {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             min-height: 2.4rem !important;
             border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
             font-size: 0.95rem !important;
             font-weight: 600 !important;
-            padding: 0.3rem 0 !important;
-            width: 100% !important;
+            text-decoration: none !important;
+            -webkit-tap-highlight-color: transparent;
+        }}
+        a.eb-score-chip.selected {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
         }}
         .eb-morning-saved-banner {{
             background: rgba(46, 125, 96, 0.1);
@@ -399,6 +460,7 @@ def _render_evening_section(confirmed: dict) -> None:
     )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
+        persist_review_draft(today, menu_ids)
         if not _review_scores_complete(menu_ids):
             st.warning("请完成所有评分后再提交。")
             return
