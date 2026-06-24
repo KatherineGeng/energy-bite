@@ -1,7 +1,8 @@
-"""Review page UI — HTML chips (5.0.15 layout) + query-param clicks."""
+"""Review page UI — HTML chips (layout) + optional st.pills (fast clicks in fragment)."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from urllib.parse import quote
 
 import streamlit as st
@@ -61,6 +62,39 @@ def render_score_picker_html(
         token = f"{menu_id}:{field}:{score}"
         href = append_nav_params(f"?nav={quote(page)}&review_score={quote(token)}")
         chips.append(f'<a class="eb-score-chip{selected}" href="{href}">{score}</a>')
+    st.markdown(f'<div class="eb-score-row">{"".join(chips)}</div>', unsafe_allow_html=True)
+
+
+def _render_score_picker_pills(
+    title: str,
+    session_key: str,
+    on_pick: Callable[[], None] | None,
+) -> None:
+    st.pills(
+        title,
+        options=[1, 2, 3, 4, 5],
+        format_func=str,
+        selection_mode="single",
+        key=session_key,
+        label_visibility="collapsed",
+        on_change=on_pick,
+    )
+
+
+def render_score_picker(
+    title: str,
+    caption: str,
+    session_key: str,
+    *,
+    menu_id: str,
+    field: str,
+    today: str,
+    on_pick: Callable[[], None] | None = None,
+) -> None:
+    """Horizontal 1–5 chips; st.pills when available (fragment-fast), else HTML links."""
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     st.caption(caption)
-    st.markdown(f'<div class="eb-score-row">{"".join(chips)}</div>', unsafe_allow_html=True)
+    if hasattr(st, "pills"):
+        _render_score_picker_pills(title, session_key, on_pick)
+    else:
+        render_score_picker_html(title, caption, session_key, menu_id, field, today)

@@ -1,7 +1,7 @@
 # Energy Bite — deployment dependencies
 # Generated from project import scan (stdlib excluded)
 
-streamlit>=1.36.0
+streamlit>=1.40.0
 pandas>=2.0.0
 Pillow>=10.0.0
 psycopg2-binary>=2.9.9

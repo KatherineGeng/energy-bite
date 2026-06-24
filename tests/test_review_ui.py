@@ -42,6 +42,37 @@ def test_score_picker_html_row(monkeypatch):
     assert "review_score=" in row_html
 
 
+def test_day_score_picker_html(monkeypatch):
+    import streamlit as st
+
+    fake = _FakeSession(current_page="night")
+    monkeypatch.setattr(st, "session_state", fake)
+    captured: list[str] = []
+
+    def _markdown(html: str, **kwargs):
+        captured.append(html)
+
+    monkeypatch.setattr(st, "markdown", _markdown)
+    monkeypatch.setattr(st, "caption", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "src.review_ui.append_nav_params",
+        lambda url: url,
+    )
+
+    render_score_picker_html(
+        "情绪状态 (1-5分)",
+        "1分：很低落 → 5分：很愉悦",
+        "review_day_mood",
+        "day",
+        "mood",
+        "2026-06-18",
+    )
+
+    row_html = next((h for h in captured if "eb-score-row" in h), "")
+    assert "eb-score-chip" in row_html
+    assert "day%3Amood%3A" in row_html or "day:mood" in row_html
+
+
 def test_favorite_link_not_button(monkeypatch):
     import streamlit as st
 

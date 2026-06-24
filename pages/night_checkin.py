@@ -25,17 +25,10 @@ from src.review_persistence import (
     on_review_field_change,
     persist_review_draft,
 )
-from src.review_ui import render_dish_header_with_favorite, render_score_picker_html
+from src.review_ui import render_dish_header_with_favorite, render_score_picker
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
-
-SCORE_OPTIONS = [1, 2, 3, 4, 5]
-
-
-def _score_btn(x: int) -> str:
-    return str(x)
-
 
 def _dish_favorited_in_db(menu_id: str, today: str) -> bool:
     df = load_favorites_dishes()
@@ -66,13 +59,17 @@ def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
     if len(parts) != 3:
         return
     menu_id, field, score_text = parts
-    if field not in ("operation", "nps"):
-        return
     try:
         score = int(score_text)
     except ValueError:
         return
     if score < 1 or score > 5:
+        return
+    if menu_id == "day" and field in ("mood", "energy"):
+        st.session_state[f"review_day_{field}"] = score
+        persist_review_draft(today, menu_ids)
+        return
+    if field not in ("operation", "nps"):
         return
     st.session_state[f"review_{menu_id}_{field}"] = score
     persist_review_draft(today, menu_ids)
@@ -188,6 +185,34 @@ def _inject_review_card_css() -> None:
             -webkit-tap-highlight-color: transparent;
         }}
         a.eb-score-chip.selected {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
+        }}
+        /* st.pills — match eb-score-chip when Streamlit >= 1.40 (fragment-fast clicks) */
+        .eb-evening-review [data-testid="stPills"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
+        }}
+        .eb-evening-review [data-testid="stPills"] button {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }}
+        .eb-evening-review [data-testid="stPills"] button[aria-pressed="true"] {{
             background: {ACCENT} !important;
             border-color: {ACCENT} !important;
             color: #fff !important;
@@ -332,18 +357,27 @@ def _render_morning_section(today_iso: str) -> None:
 
 def _render_evening_section(confirmed: dict) -> None:
     menu_ids: list[str] = list(confirmed["menu_ids"])
-    morning = st.session_state.get("morning_inputs", {})
     today = confirmed["date"]
-
-    section_title("fa-utensils", "今日餐食评价")
 
     _apply_review_fav_toggle(today, menu_ids)
     _apply_review_score_pick(today, menu_ids)
+    _render_evening_review_fragment(confirmed, menu_ids, today)
+
+
+@st.fragment
+def _render_evening_review_fragment(confirmed: dict, menu_ids: list[str], today: str) -> None:
+    morning = st.session_state.get("morning_inputs", {})
+
+    section_title("fa-utensils", "今日餐食评价")
 
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
     apply_review_draft_to_session(today, menu_ids)
     _hydrate_review_favorites(menu_ids, today)
+
+    def _persist() -> None:
+        persist_review_draft(today, menu_ids)
+
     for menu_id in menu_ids:
         menu_row = get_menu_row(menu_id, snapshots)
         if not menu_row:
@@ -354,21 +388,23 @@ def _render_evening_section(confirmed: dict) -> None:
             dish_name = menu_row["menu_name"]
             render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
 
-            render_score_picker_html(
+            render_score_picker(
                 "操作从容度 (1-5分)",
                 "1：极其匆忙 → 5：优雅享受",
                 f"review_{menu_id}_operation",
-                menu_id,
-                "operation",
-                today,
+                menu_id=menu_id,
+                field="operation",
+                today=today,
+                on_pick=_persist,
             )
-            render_score_picker_html(
+            render_score_picker(
                 "这道菜我还想再吃一次 (1-5分)",
                 "1：极不赞成 → 5：极度赞成",
                 f"review_{menu_id}_nps",
-                menu_id,
-                "nps",
-                today,
+                menu_id=menu_id,
+                field="nps",
+                today=today,
+                on_pick=_persist,
             )
 
     st.checkbox(
@@ -380,32 +416,23 @@ def _render_evening_section(confirmed: dict) -> None:
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    st.markdown("**情绪状态 (1-5分)**")
-    st.caption("1分：很低落 → 5分：很愉悦")
-    day_mood = st.radio(
-        "情绪状态",
-        options=SCORE_OPTIONS,
-        horizontal=True,
-        format_func=_score_btn,
-        label_visibility="collapsed",
-        key="review_day_mood",
-        index=None,
-        on_change=on_review_field_change,
-        args=(today, menu_ids),
+    render_score_picker(
+        "情绪状态 (1-5分)",
+        "1分：很低落 → 5分：很愉悦",
+        "review_day_mood",
+        menu_id="day",
+        field="mood",
+        today=today,
+        on_pick=_persist,
     )
-
-    st.markdown("**精力水平 (1-5分)**")
-    st.caption("1分：很疲惫 → 5分：精力充沛")
-    day_energy = st.radio(
-        "精力水平",
-        options=SCORE_OPTIONS,
-        horizontal=True,
-        format_func=_score_btn,
-        label_visibility="collapsed",
-        key="review_day_energy",
-        index=None,
-        on_change=on_review_field_change,
-        args=(today, menu_ids),
+    render_score_picker(
+        "精力水平 (1-5分)",
+        "1分：很疲惫 → 5分：精力充沛",
+        "review_day_energy",
+        menu_id="day",
+        field="energy",
+        today=today,
+        on_pick=_persist,
     )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
@@ -413,6 +440,8 @@ def _render_evening_section(confirmed: dict) -> None:
         if not _review_scores_complete(menu_ids):
             st.warning("请完成所有评分后再提交。")
             return
+        day_mood = st.session_state.get("review_day_mood")
+        day_energy = st.session_state.get("review_day_energy")
         log_ids: list[str] = []
         for menu_id in menu_ids:
             dish_fav = bool(st.session_state.get(f"review_{menu_id}_fav_dish", False))
