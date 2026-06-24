@@ -131,11 +131,20 @@ def _record_shared_menus(day: str, menu_ids: list[str]) -> None:
         record_menu_archive(day, menu_ids, is_shared=True)
 
 
+def _show_sample_poster() -> bool:
+    """Sample poster only when maker panel is closed and user has not generated one."""
+    if st.session_state.get("poster_bytes"):
+        return False
+    if st.session_state.get("export_action_panel") == "poster":
+        return False
+    return _SAMPLE_POSTER.is_file()
+
+
 def _render_default_poster() -> None:
     st.markdown('<div class="eb-poster-hero">', unsafe_allow_html=True)
     if st.session_state.get("poster_bytes"):
         st.image(st.session_state.poster_bytes, use_container_width=True)
-    elif _SAMPLE_POSTER.is_file():
+    elif _show_sample_poster():
         st.image(str(_SAMPLE_POSTER), use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -225,21 +234,28 @@ def _render_poster_controls() -> None:
 
         snapshots = _plan_snapshots(date_str)
         meals = meals_for_poster(date_str, menu_ids)
-        with st.spinner("正在生成海报…"):
-            png_bytes = generate_poster(
-                date_str=date_str,
-                meals=meals,
-                photos=photos,
-                snapshots=snapshots,
-            )
+        try:
+            with st.spinner("正在生成海报…"):
+                png_bytes = generate_poster(
+                    date_str=date_str,
+                    meals=meals,
+                    photos=photos,
+                    snapshots=snapshots,
+                )
+        except Exception as exc:
+            st.error(f"海报生成失败：{exc}")
+            return
+        if not png_bytes:
+            st.error("海报生成失败，请稍后重试。")
+            return
         if uploaded:
             save_uploads_to_library(uploaded, source="user")
         save_poster_state(date_str, png_bytes, menu_ids)
         st.session_state.poster_share_text = ""
         _append_poster_history(date_str, menu_ids)
+        st.rerun()
 
 
-@st.fragment
 def _render_poster_section() -> None:
     today_iso = date.today().isoformat()
     restore_poster_for_display(today_iso)

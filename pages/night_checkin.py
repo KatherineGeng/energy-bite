@@ -21,20 +21,48 @@ from src.query_nav import pop_query_param
 from src.review_persistence import (
     apply_review_draft_to_session,
     autosave_morning_context,
-    on_morning_change,
     on_review_field_change,
     persist_review_draft,
 )
-from src.review_ui import render_dish_header_with_favorite, render_score_picker
+from src.review_ui import (
+    render_dish_header_with_favorite,
+    render_option_picker_html,
+    render_score_picker_html,
+)
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
+
 
 def _dish_favorited_in_db(menu_id: str, today: str) -> bool:
     df = load_favorites_dishes()
     if df.empty:
         return False
     return not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
+
+
+def _apply_morning_pick(today_iso: str) -> None:
+    raw = pop_query_param("morning_pick")
+    if not raw:
+        return
+    parts = raw.split(":", 1)
+    if len(parts) != 2:
+        return
+    field, value = parts
+    if field == "sleep" and value in SLEEP_OPTIONS:
+        st.session_state.morning_sleep = value
+    elif field == "load" and value in LOAD_OPTIONS:
+        st.session_state.morning_load = value
+    elif field == "meal_count":
+        try:
+            count = int(value)
+        except ValueError:
+            return
+        if count in MEAL_COUNT_OPTIONS:
+            st.session_state.morning_meal_count = count
+    else:
+        return
+    autosave_morning_context(today_iso)
 
 
 def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
@@ -184,35 +212,11 @@ def _inject_review_card_css() -> None:
             text-decoration: none !important;
             -webkit-tap-highlight-color: transparent;
         }}
+        .eb-morning-block a.eb-score-chip {{
+            font-size: 0.82rem !important;
+            padding: 0.1rem 0.05rem !important;
+        }}
         a.eb-score-chip.selected {{
-            background: {ACCENT} !important;
-            border-color: {ACCENT} !important;
-            color: #fff !important;
-        }}
-        /* st.pills — match eb-score-chip when Streamlit >= 1.40 (fragment-fast clicks) */
-        .eb-evening-review [data-testid="stPills"] > div {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: stretch !important;
-            gap: 0.28rem !important;
-            width: 100% !important;
-            margin: 0.15rem 0 0.5rem !important;
-        }}
-        .eb-evening-review [data-testid="stPills"] button {{
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
-            min-height: 2.4rem !important;
-            border-radius: 10px !important;
-            border: 1px solid rgba(141, 163, 153, 0.45) !important;
-            background: rgba(255, 255, 255, 0.9) !important;
-            color: #334155 !important;
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }}
-        .eb-evening-review [data-testid="stPills"] button[aria-pressed="true"] {{
             background: {ACCENT} !important;
             border-color: {ACCENT} !important;
             color: #fff !important;
@@ -227,30 +231,12 @@ def _inject_review_card_css() -> None:
             font-size: 0.92rem;
             line-height: 1.45;
         }}
-        .eb-morning-block [data-testid="stWidgetLabel"] {{
-            display: none !important;
-        }}
         .eb-morning-block .eb-morning-q-title {{
             font-size: 1.05rem;
             font-weight: 600;
             color: #1E293B;
             margin: 0.5rem 0 0.25rem;
             white-space: nowrap;
-        }}
-        .eb-morning-block div[data-testid="stRadio"] > div {{
-            flex-wrap: nowrap !important;
-        }}
-        .eb-morning-block div[data-testid="stRadio"] label {{
-            flex: 1 1 auto !important;
-            max-width: none !important;
-            white-space: nowrap !important;
-            word-break: keep-all !important;
-            padding: 0.35rem 0.25rem !important;
-        }}
-        .eb-dish-meta {{
-            font-size: 1rem;
-            color: #64748B;
-            margin: 0.15rem 0 0.5rem;
         }}
         .eb-score-label {{
             font-family: 'Noto Serif SC', serif;
@@ -301,7 +287,7 @@ def _render_morning_section(today_iso: str) -> None:
             f'<div class="eb-morning-saved-banner">'
             f"✓ <strong>今日晨间记录已保存</strong><br>"
             f"睡眠：{sleep_txt} · 消耗：{load_txt} · 餐数：{meal_txt} 餐<br>"
-            f"<span style='opacity:0.85'>修改下方选项会自动更新，无需重复保存。</span>"
+            f"<span style='opacity:0.85'>点击下方选项会自动更新，无需重复保存。</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -310,46 +296,29 @@ def _render_morning_section(today_iso: str) -> None:
 
     st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
 
-    st.markdown('<p class="eb-morning-q-title">一、昨晚睡眠状态</p>', unsafe_allow_html=True)
-    st.radio(
-        "昨晚睡眠状态",
+    render_option_picker_html(
+        "一、昨晚睡眠状态",
+        "",
+        "morning_sleep",
         SLEEP_OPTIONS,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="morning_sleep",
-        on_change=on_morning_change,
-        args=(today_iso,),
+        "sleep",
     )
-
-    st.markdown('<p class="eb-morning-q-title">二、今日脑力/体力消耗</p>', unsafe_allow_html=True)
-    st.radio(
-        "脑力体力消耗",
+    render_option_picker_html(
+        "二、今日脑力/体力消耗",
+        "",
+        "morning_load",
         LOAD_OPTIONS,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="morning_load",
-        on_change=on_morning_change,
-        args=(today_iso,),
+        "load",
     )
-
-    st.markdown('<p class="eb-morning-q-title">三、今日一人食餐数</p>', unsafe_allow_html=True)
-    st.radio(
-        "一人食餐数",
+    render_option_picker_html(
+        "三、今日一人食餐数",
+        "",
+        "morning_meal_count",
         MEAL_COUNT_OPTIONS,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="morning_meal_count",
-        format_func=lambda x: f"{x} 餐",
-        on_change=on_morning_change,
-        args=(today_iso,),
+        "meal_count",
+        format_label=lambda x: f"{x} 餐",
     )
     st.markdown("</div>", unsafe_allow_html=True)
-
-    if not saved:
-        if st.button("保存晨间记录", type="secondary", use_container_width=True, key="save_morning_context"):
-            autosave_morning_context(today_iso)
-            st.session_state.record_saved_flash = True
-            st.rerun()
 
     if st.session_state.pop("record_saved_flash", False):
         st.success("晨间记录已保存 · 可前往「菜单」生成今日餐食。")
@@ -357,27 +326,18 @@ def _render_morning_section(today_iso: str) -> None:
 
 def _render_evening_section(confirmed: dict) -> None:
     menu_ids: list[str] = list(confirmed["menu_ids"])
+    morning = st.session_state.get("morning_inputs", {})
     today = confirmed["date"]
+
+    section_title("fa-utensils", "今日餐食评价")
 
     _apply_review_fav_toggle(today, menu_ids)
     _apply_review_score_pick(today, menu_ids)
-    _render_evening_review_fragment(confirmed, menu_ids, today)
-
-
-@st.fragment
-def _render_evening_review_fragment(confirmed: dict, menu_ids: list[str], today: str) -> None:
-    morning = st.session_state.get("morning_inputs", {})
-
-    section_title("fa-utensils", "今日餐食评价")
 
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
     apply_review_draft_to_session(today, menu_ids)
     _hydrate_review_favorites(menu_ids, today)
-
-    def _persist() -> None:
-        persist_review_draft(today, menu_ids)
-
     for menu_id in menu_ids:
         menu_row = get_menu_row(menu_id, snapshots)
         if not menu_row:
@@ -388,23 +348,21 @@ def _render_evening_review_fragment(confirmed: dict, menu_ids: list[str], today:
             dish_name = menu_row["menu_name"]
             render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
 
-            render_score_picker(
+            render_score_picker_html(
                 "操作从容度 (1-5分)",
                 "1：极其匆忙 → 5：优雅享受",
                 f"review_{menu_id}_operation",
-                menu_id=menu_id,
-                field="operation",
-                today=today,
-                on_pick=_persist,
+                menu_id,
+                "operation",
+                today,
             )
-            render_score_picker(
+            render_score_picker_html(
                 "这道菜我还想再吃一次 (1-5分)",
                 "1：极不赞成 → 5：极度赞成",
                 f"review_{menu_id}_nps",
-                menu_id=menu_id,
-                field="nps",
-                today=today,
-                on_pick=_persist,
+                menu_id,
+                "nps",
+                today,
             )
 
     st.checkbox(
@@ -416,23 +374,21 @@ def _render_evening_review_fragment(confirmed: dict, menu_ids: list[str], today:
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    render_score_picker(
+    render_score_picker_html(
         "情绪状态 (1-5分)",
         "1分：很低落 → 5分：很愉悦",
         "review_day_mood",
-        menu_id="day",
-        field="mood",
-        today=today,
-        on_pick=_persist,
+        "day",
+        "mood",
+        today,
     )
-    render_score_picker(
+    render_score_picker_html(
         "精力水平 (1-5分)",
         "1分：很疲惫 → 5分：精力充沛",
         "review_day_energy",
-        menu_id="day",
-        field="energy",
-        today=today,
-        on_pick=_persist,
+        "day",
+        "energy",
+        today,
     )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
@@ -481,6 +437,7 @@ def _render_evening_review_fragment(confirmed: dict, menu_ids: list[str], today:
 
 def render() -> None:
     today_iso = st.session_state.get("today_date", date.today().isoformat())
+    _apply_morning_pick(today_iso)
     _inject_review_card_css()
     _render_morning_section(today_iso)
 
