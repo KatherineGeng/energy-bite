@@ -20,9 +20,11 @@ from src.database import (
 from src.query_nav import pop_query_param
 from src.review_persistence import (
     apply_review_draft_to_session,
-    autosave_morning_context,
     on_review_field_change,
     persist_review_draft,
+    try_persist_day_section,
+    try_persist_dish_section,
+    try_save_morning_section,
 )
 from src.review_ui import (
     render_dish_header_with_favorite,
@@ -62,7 +64,8 @@ def _apply_morning_pick(today_iso: str) -> None:
             st.session_state.morning_meal_count = count
     else:
         return
-    autosave_morning_context(today_iso)
+    if try_save_morning_section(today_iso):
+        st.session_state.record_saved_flash = True
 
 
 def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
@@ -76,7 +79,7 @@ def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
         save_favorite_dish(menu_id, today)
     else:
         remove_favorite_dish(menu_id, today)
-    persist_review_draft(today, menu_ids)
+    try_persist_dish_section(today, menu_ids)
 
 
 def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
@@ -95,12 +98,12 @@ def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
         return
     if menu_id == "day" and field in ("mood", "energy"):
         st.session_state[f"review_day_{field}"] = score
-        persist_review_draft(today, menu_ids)
+        try_persist_day_section(today, menu_ids)
         return
     if field not in ("operation", "nps"):
         return
     st.session_state[f"review_{menu_id}_{field}"] = score
-    persist_review_draft(today, menu_ids)
+    try_persist_dish_section(today, menu_ids)
 
 
 def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
@@ -292,7 +295,7 @@ def _render_morning_section(today_iso: str) -> None:
             unsafe_allow_html=True,
         )
     else:
-        st.caption("请选择下方三项，选择后会自动保存到云端。")
+        st.caption("请依次选择下方三项，选齐后自动保存到云端。")
 
     st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
 

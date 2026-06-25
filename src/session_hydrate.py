@@ -53,23 +53,32 @@ def clear_hydration_markers() -> None:
 
 
 def apply_morning_context_from_disk(day: str | None = None) -> bool:
-    """Load saved morning answers into session widget keys."""
+    """Load saved morning answers into session — never overwrite in-progress picks."""
+    from src.review_persistence import mark_morning_disk_signature, morning_section_complete
+
     target = day or st.session_state.get("today_date", date.today().isoformat())
     ctx = load_morning_context(target)
     if not ctx:
         return False
-    st.session_state.morning_sleep = ctx["sleep"]
-    st.session_state.morning_load = ctx["load"]
-    st.session_state.morning_meal_count = int(ctx["meal_count"])
-    st.session_state.morning_inputs = {
-        "sleep": ctx["sleep"],
-        "load": ctx["load"],
-        "meal_count": int(ctx["meal_count"]),
-    }
-    st.session_state.morning_context_loaded = target
-    from src.review_persistence import mark_morning_disk_signature
-
-    mark_morning_disk_signature(target, ctx["sleep"], ctx["load"], int(ctx["meal_count"]))
+    if st.session_state.get("morning_sleep") is None:
+        st.session_state.morning_sleep = ctx["sleep"]
+    if st.session_state.get("morning_load") is None:
+        st.session_state.morning_load = ctx["load"]
+    if st.session_state.get("morning_meal_count") is None:
+        st.session_state.morning_meal_count = int(ctx["meal_count"])
+    if morning_section_complete():
+        st.session_state.morning_inputs = {
+            "sleep": str(st.session_state.morning_sleep),
+            "load": str(st.session_state.morning_load),
+            "meal_count": int(st.session_state.morning_meal_count),
+        }
+        st.session_state.morning_context_loaded = target
+        mark_morning_disk_signature(
+            target,
+            str(st.session_state.morning_sleep),
+            str(st.session_state.morning_load),
+            int(st.session_state.morning_meal_count),
+        )
     return True
 
 
@@ -192,8 +201,10 @@ def hydrate_today_state() -> None:
 
         mark_morning_disk_signature(today, ctx["sleep"], ctx["load"], int(ctx["meal_count"]))
     elif st.session_state.get("morning_context_loaded") != today:
-        for key in ("morning_sleep", "morning_load", "morning_meal_count", "morning_inputs"):
-            st.session_state.pop(key, None)
+        in_progress = any(st.session_state.get(key) is not None for key in ("morning_sleep", "morning_load", "morning_meal_count"))
+        if not in_progress:
+            for key in ("morning_sleep", "morning_load", "morning_meal_count", "morning_inputs"):
+                st.session_state.pop(key, None)
 
     st.session_state._hydrated_date = today
     st.session_state._hydrated_user = user_key
