@@ -15,7 +15,13 @@ from src.database import (
 )
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
-from src.poster_store import meals_for_poster, restore_poster_for_display, save_poster_state
+from src.poster_store import (
+    meals_for_poster,
+    primary_menu_ids_for_poster,
+    restore_poster_for_display,
+    save_poster_state,
+    user_has_generated_poster,
+)
 from src.session_hydrate import menu_ids_for_date
 from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text
 
@@ -140,8 +146,8 @@ def _record_shared_menus(day: str, menu_ids: list[str]) -> None:
 
 
 def _show_sample_poster() -> bool:
-    """Sample poster only when maker panel is closed and user has not generated one."""
-    if st.session_state.get("poster_bytes"):
+    """Sample poster only before the user has ever generated one."""
+    if user_has_generated_poster():
         return False
     if st.session_state.get("export_action_panel") == "poster":
         return False
@@ -194,9 +200,11 @@ def _render_poster_actions(date_str: str) -> None:
 
 
 def _render_poster_controls() -> None:
-    today = date.today()
-    today_iso = today.isoformat()
-    default_ids = _today_menu_ids()
+    from src.app_time import beijing_today, beijing_today_iso
+
+    today = beijing_today()
+    today_iso = beijing_today_iso()
+    default_ids = primary_menu_ids_for_poster(today_iso) or _today_menu_ids()
 
     if default_ids:
         st.markdown(
@@ -211,7 +219,7 @@ def _render_poster_controls() -> None:
     if date_str == today_iso and default_ids:
         menu_ids = default_ids
     else:
-        menu_ids = menu_ids_for_date(date_str)
+        menu_ids = primary_menu_ids_for_poster(date_str) or menu_ids_for_date(date_str)
 
     if menu_ids:
         _render_menu_summary(date_str, menu_ids)
@@ -242,6 +250,9 @@ def _render_poster_controls() -> None:
 
         snapshots = _plan_snapshots(date_str)
         meals = meals_for_poster(date_str, menu_ids)
+        if not meals:
+            st.error("未找到菜单数据，请先在「菜单」页确认今日就餐计划。")
+            return
         try:
             with st.spinner("正在生成海报…"):
                 png_bytes = generate_poster(
@@ -265,7 +276,9 @@ def _render_poster_controls() -> None:
 
 
 def _render_poster_section() -> None:
-    today_iso = date.today().isoformat()
+    from src.app_time import beijing_today_iso
+
+    today_iso = st.session_state.get("today_date", beijing_today_iso())
     restore_poster_for_display(today_iso)
     _render_default_poster()
     if st.session_state.get("poster_bytes"):
@@ -399,6 +412,8 @@ def render() -> None:
 
     _inject_export_ui_css()
 
+    from src.app_time import beijing_today_iso
+
     if st.session_state.pop("review_complete", False):
         st.session_state.export_action_panel = "poster"
         st.success("回顾已完成 · 上传实拍，生成今日全日生活志海报吧。")
@@ -407,6 +422,10 @@ def render() -> None:
         st.session_state.poster_history = []
     if "poster_cache" not in st.session_state:
         st.session_state.poster_cache = {}
+    if "poster_b64_cache" not in st.session_state:
+        st.session_state.poster_b64_cache = {}
+
+    restore_poster_for_display(st.session_state.get("today_date", beijing_today_iso()))
 
     _render_top_actions()
     _render_poster_section()

@@ -129,9 +129,16 @@ def _ingredient_line(menu_row: dict, ingredient_map: dict[str, dict]) -> str:
         ing = ingredient_map.get(ing_id)
         if ing:
             names.append(str(ing.get("name", ing_id)))
-    if not names:
-        return ""
-    return f"({' | '.join(names)})"
+    if names:
+        return f"({' | '.join(names)})"
+    tags = parse_energy_tags(menu_row.get("energy_tags", ""))
+    if tags:
+        return f"({' · '.join(tags)})"
+    desc = str(menu_row.get("description", "")).strip()
+    if desc:
+        short = desc if len(desc) <= 48 else desc[:45] + "…"
+        return f"({short})"
+    return ""
 
 
 def _collect_day_tags(meals: list[dict]) -> list[str]:

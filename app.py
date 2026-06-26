@@ -76,6 +76,8 @@ if "poster_history" not in st.session_state:
     st.session_state.poster_history = []
 if "poster_cache" not in st.session_state:
     st.session_state.poster_cache = {}
+if "poster_b64_cache" not in st.session_state:
+    st.session_state.poster_b64_cache = {}
 
 VALID_PAGES = {"morning", "night", "export", "mine", "admin"}
 apply_query_nav(VALID_PAGES)

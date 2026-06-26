@@ -28,16 +28,16 @@ def render_dish_header_with_favorite(
     *,
     on_toggle: Callable[[], None],
 ) -> None:
-    """Dish title left, heart+收藏 right — same row as 5.0.19."""
+    """Dish title left, heart+收藏 right — 5.0.19 flex row."""
     active = dish_favorited(menu_id, today)
     heart = "❤️" if active else "🤍"
-    col_title, col_fav = st.columns([7, 3], gap="small")
-    with col_title:
+    title_col, fav_col = st.columns([6, 1], gap="small")
+    with title_col:
         st.markdown(
-            f'<span class="eb-dish-name">{meal_type}：{dish_name}</span>',
+            f'<p class="eb-dish-name">{meal_type}：{dish_name}</p>',
             unsafe_allow_html=True,
         )
-    with col_fav:
+    with fav_col:
         st.button(
             f"{heart} 收藏",
             key=f"fav_btn_{menu_id}",
@@ -160,12 +160,15 @@ def render_score_picker(
     session_key: str,
     *,
     on_pick: Callable[[], None] | None = None,
+    use_button_chips: bool = False,
 ) -> None:
     """Horizontal 1–5 chips; st.pills in @st.fragment avoids full-page reload."""
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:
         st.caption(caption)
-    if _uses_fast_pills():
+    if use_button_chips or not _uses_fast_pills():
+        _render_score_buttons(session_key, on_pick)
+    else:
         st.markdown('<div class="eb-review-picks">', unsafe_allow_html=True)
         st.pills(
             title,
@@ -177,8 +180,6 @@ def render_score_picker(
             on_change=on_pick,
         )
         st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        _render_score_buttons(session_key, on_pick)
 
 
 def render_option_picker(

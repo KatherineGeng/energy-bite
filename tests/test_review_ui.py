@@ -132,5 +132,5 @@ def test_favorite_uses_button_not_html_link(monkeypatch):
 
     render_dish_header_with_favorite("午餐", "番茄炒蛋", "M001", "2026-06-18", on_toggle=lambda: None)
 
-    assert columns_called == [[7, 3]]
+    assert columns_called == [[6, 1]]
     assert any("收藏" in label for label in button_labels)

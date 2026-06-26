@@ -501,9 +501,15 @@ def _build_plan_snapshots(
 def get_menu_row(menu_id: str, snapshots: dict[str, dict[str, str]] | None = None) -> dict[str, Any] | None:
     """Menu from library, or from saved plan snapshot when library row is missing."""
     row = get_menu_by_id(menu_id)
+    snap = (snapshots or {}).get(menu_id)
+    if row and snap:
+        merged = dict(row)
+        for field in ("menu_name", "meal_type", "description", "ingredient_ids", "energy_tags", "prep_minutes"):
+            if not str(merged.get(field, "")).strip() and snap.get(field):
+                merged[field] = snap[field]
+        return merged
     if row:
         return row
-    snap = (snapshots or {}).get(menu_id)
     if not snap:
         return None
     return {

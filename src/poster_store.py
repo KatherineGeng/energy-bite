@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 from typing import Any
 
 import streamlit as st
+
+from src.meal_plan_utils import MEAL_ORDER
 
 
 def _cache() -> dict[str, bytes]:
@@ -13,17 +16,35 @@ def _cache() -> dict[str, bytes]:
     return st.session_state.poster_cache
 
 
+def _decode_b64(stored: str | None) -> bytes | None:
+    if not stored:
+        return None
+    try:
+        return base64.b64decode(stored.encode("ascii"))
+    except Exception:
+        return None
+
+
+def _store_b64(date_str: str, png_bytes: bytes) -> None:
+    st.session_state.poster_b64 = base64.b64encode(png_bytes).decode("ascii")
+    b64_cache = dict(st.session_state.get("poster_b64_cache") or {})
+    b64_cache[date_str] = st.session_state.poster_b64
+    st.session_state.poster_b64_cache = b64_cache
+
+
 def save_poster_state(date_str: str, png_bytes: bytes, menu_ids: list[str]) -> None:
     st.session_state.poster_bytes = png_bytes
     st.session_state.poster_filename = f"jianyu_{date_str}.png"
     st.session_state.poster_menu_ids = list(menu_ids)
     st.session_state.poster_date_str = date_str
+    st.session_state.poster_last_generated = date_str
     if "poster_share_text" not in st.session_state:
         st.session_state.poster_share_text = ""
 
     cache = dict(_cache())
     cache[date_str] = png_bytes
     st.session_state.poster_cache = cache
+    _store_b64(date_str, png_bytes)
 
     from src.db_config import postgres_enabled
 
@@ -33,42 +54,14 @@ def save_poster_state(date_str: str, png_bytes: bytes, menu_ids: list[str]) -> N
         pg_save_poster_snapshot(date_str, png_bytes, menu_ids)
 
 
-def restore_poster_for_display(preferred_date: str | None = None) -> bool:
-    """Load poster_bytes from session cache or Postgres when hero is empty."""
-    if st.session_state.get("poster_bytes"):
-        return True
-
-    cache = _cache()
-    candidates: list[str] = []
-    if preferred_date:
-        candidates.append(preferred_date)
-    saved = st.session_state.get("poster_date_str")
-    if saved and saved not in candidates:
-        candidates.append(str(saved))
-    for date_str in sorted(cache.keys(), reverse=True):
-        if date_str not in candidates:
-            candidates.append(date_str)
-
-    for date_str in candidates:
-        if date_str in cache:
-            _apply_cached(date_str, cache[date_str])
-            return True
-        loaded = _load_from_postgres(date_str)
-        if loaded:
-            png_bytes, menu_ids = loaded
-            _apply_cached(date_str, png_bytes, menu_ids)
-            cache[date_str] = png_bytes
-            st.session_state.poster_cache = cache
-            return True
-    return False
-
-
 def _apply_cached(date_str: str, png_bytes: bytes, menu_ids: list[str] | None = None) -> None:
     st.session_state.poster_bytes = png_bytes
     st.session_state.poster_filename = f"jianyu_{date_str}.png"
     st.session_state.poster_date_str = date_str
+    st.session_state.poster_last_generated = date_str
     if menu_ids is not None:
         st.session_state.poster_menu_ids = menu_ids
+    _store_b64(date_str, png_bytes)
 
 
 def _load_from_postgres(date_str: str) -> tuple[bytes, list[str]] | None:
@@ -81,6 +74,112 @@ def _load_from_postgres(date_str: str) -> tuple[bytes, list[str]] | None:
     return pg_load_poster_snapshot(date_str)
 
 
+def _restore_candidates(preferred_date: str | None) -> list[str]:
+    candidates: list[str] = []
+    for key in ("poster_last_generated", "poster_date_str"):
+        val = st.session_state.get(key)
+        if val and str(val) not in candidates:
+            candidates.append(str(val))
+    if preferred_date and preferred_date not in candidates:
+        candidates.append(preferred_date)
+    for item in st.session_state.get("poster_history") or []:
+        d = str(item.get("date") or "")
+        if d and d not in candidates:
+            candidates.append(d)
+    for date_str in sorted(_cache().keys(), reverse=True):
+        if date_str not in candidates:
+            candidates.append(date_str)
+    return candidates
+
+
+def restore_poster_for_display(preferred_date: str | None = None) -> bool:
+    """Load poster_bytes from session / cache / Postgres when hero is empty."""
+    if st.session_state.get("poster_bytes"):
+        return True
+
+    b64 = st.session_state.get("poster_b64")
+    if b64:
+        decoded = _decode_b64(b64)
+        if decoded:
+            date_str = str(st.session_state.get("poster_date_str") or st.session_state.get("poster_last_generated") or "")
+            _apply_cached(date_str or "unknown", decoded)
+            return True
+
+    cache = _cache()
+    b64_cache = dict(st.session_state.get("poster_b64_cache") or {})
+
+    for date_str in _restore_candidates(preferred_date):
+        if date_str in cache:
+            _apply_cached(date_str, cache[date_str])
+            return True
+        if date_str in b64_cache:
+            decoded = _decode_b64(b64_cache[date_str])
+            if decoded:
+                _apply_cached(date_str, decoded)
+                cache[date_str] = decoded
+                st.session_state.poster_cache = cache
+                return True
+        loaded = _load_from_postgres(date_str)
+        if loaded:
+            png_bytes, menu_ids = loaded
+            _apply_cached(date_str, png_bytes, menu_ids)
+            cache[date_str] = png_bytes
+            st.session_state.poster_cache = cache
+            return True
+    return False
+
+
+def user_has_generated_poster() -> bool:
+    if st.session_state.get("poster_bytes"):
+        return True
+    if st.session_state.get("poster_last_generated"):
+        return True
+    if st.session_state.get("poster_b64"):
+        return True
+    if _cache():
+        return True
+    if st.session_state.get("poster_history"):
+        return True
+    return False
+
+
+def primary_menu_ids_for_poster(date_str: str) -> list[str]:
+    """One primary dish per meal slot (晨/午/晚) — matches poster canvas."""
+    from src.database import load_daily_meal_plan
+
+    saved = load_daily_meal_plan(date_str)
+    if saved and saved.get("plan"):
+        plan = saved["plan"]
+        ids: list[str] = []
+        for meal_type in MEAL_ORDER:
+            slot = plan.get(meal_type) or []
+            if slot:
+                ids.append(str(slot[0]))
+        if ids:
+            return ids
+
+    from src.session_hydrate import menu_ids_for_date
+
+    all_ids = menu_ids_for_date(date_str)
+    if not all_ids:
+        return list(st.session_state.get("final_daily_list") or st.session_state.get("current_day_menus") or [])
+
+    from src.database import get_menu_row
+
+    snapshots = dict(saved.get("snapshots") or {}) if saved else dict(st.session_state.get("eb_plan_snapshots") or {})
+    by_type: dict[str, str] = {}
+    for menu_id in all_ids:
+        row = get_menu_row(menu_id, snapshots)
+        meal_type = str(row.get("meal_type", "午餐") if row else "午餐")
+        if meal_type not in by_type:
+            by_type[meal_type] = menu_id
+    ids = []
+    for meal_type in MEAL_ORDER:
+        if meal_type in by_type:
+            ids.append(by_type[meal_type])
+    return ids or list(all_ids)
+
+
 def meals_for_poster(date_str: str, menu_ids: list[str]) -> list[dict[str, Any]]:
     from src.database import get_menu_row, load_daily_meal_plan
 
@@ -91,8 +190,11 @@ def meals_for_poster(date_str: str, menu_ids: list[str]) -> list[dict[str, Any]]
     if not snapshots:
         snapshots = dict(st.session_state.get("eb_plan_snapshots") or {})
 
+    primary_ids = primary_menu_ids_for_poster(date_str)
+    use_ids = primary_ids if primary_ids else menu_ids
+
     meals: list[dict[str, Any]] = []
-    for menu_id in menu_ids:
+    for menu_id in use_ids:
         row = get_menu_row(menu_id, snapshots)
         if row:
             meals.append(row)
