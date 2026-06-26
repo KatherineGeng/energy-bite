@@ -34,7 +34,13 @@ _SAMPLE_POSTER = Path(__file__).resolve().parent.parent / "assets" / "sample_pos
 
 def _show_poster_image_bytes(png_bytes: bytes) -> None:
     """Inline PNG so iOS Safari can long-press → Save to Photos."""
-    b64 = base64.b64encode(png_bytes).decode("ascii")
+    sig = f"{len(png_bytes)}:{hash(png_bytes[:512])}"
+    cached = st.session_state.get("_poster_display_b64")
+    if isinstance(cached, dict) and cached.get("sig") == sig:
+        b64 = str(cached["b64"])
+    else:
+        b64 = base64.b64encode(png_bytes).decode("ascii")
+        st.session_state["_poster_display_b64"] = {"sig": sig, "b64": b64}
     st.markdown(
         f'<img class="eb-poster-save-img" src="data:image/png;base64,{b64}" '
         f'alt="简愈生活志海报" draggable="false" />',

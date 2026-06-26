@@ -16,6 +16,7 @@ from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
 from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
 from src.review_nav_state import is_review_chip_navigation, restore_review_picks_from_query
+from src.session_hydrate import is_secondary_page_navigation
 from src.profile_bootstrap import restore_profile_from_browser
 from src.query_nav import qp_first
 from src.theme import inject_theme_assets
@@ -114,7 +115,7 @@ if not _is_admin and not profile_complete():
     render_onboarding()
     st.stop()
 
-hydrate_today_state(lightweight=is_review_chip_navigation())
+hydrate_today_state(lightweight=is_review_chip_navigation() or is_secondary_page_navigation())
 
 if _page == "morning":
     from pages import morning

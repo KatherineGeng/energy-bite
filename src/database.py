@@ -833,23 +833,40 @@ def save_app_image(data: bytes, *, source: str = "user", title: str = "") -> str
     return image_id
 
 
+_STATIC_GALLERY_ROWS: list[dict[str, str]] | None = None
+_STATIC_IMAGE_PATHS: dict[str, Path] | None = None
+
+
+def _static_image_paths() -> dict[str, Path]:
+    global _STATIC_IMAGE_PATHS
+    if _STATIC_IMAGE_PATHS is not None:
+        return _STATIC_IMAGE_PATHS
+    paths: dict[str, Path] = {}
+    if ASSETS_GALLERY_DIR.is_dir():
+        for path in ASSETS_GALLERY_DIR.iterdir():
+            if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                paths[path.stem] = path
+    _STATIC_IMAGE_PATHS = paths
+    return paths
+
+
 def _static_gallery_rows() -> list[dict[str, str]]:
+    global _STATIC_GALLERY_ROWS
+    if _STATIC_GALLERY_ROWS is not None:
+        return _STATIC_GALLERY_ROWS
     rows: list[dict[str, str]] = []
-    if not ASSETS_GALLERY_DIR.is_dir():
-        return rows
-    for path in sorted(ASSETS_GALLERY_DIR.iterdir()):
-        if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
-            continue
+    for stem, path in sorted(_static_image_paths().items(), key=lambda item: item[0]):
         rows.append(
             {
-                "image_id": f"STATIC_{path.stem}",
+                "image_id": f"STATIC_{stem}",
                 "filename": path.name,
                 "source": "static",
-                "title": path.stem,
+                "title": stem,
                 "created_at": "",
                 "data_b64": "",
             }
         )
+    _STATIC_GALLERY_ROWS = rows
     return rows
 
 
@@ -868,10 +885,9 @@ def list_app_images() -> list[dict[str, str]]:
 def get_app_image_bytes(image_id: str) -> bytes | None:
     if str(image_id).startswith("STATIC_"):
         stem = str(image_id)[7:]
-        if ASSETS_GALLERY_DIR.is_dir():
-            for path in ASSETS_GALLERY_DIR.iterdir():
-                if path.stem == stem and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
-                    return path.read_bytes()
+        path = _static_image_paths().get(stem)
+        if path and path.is_file():
+            return path.read_bytes()
         return None
 
     df = _read_csv(APP_IMAGES_FILE, APP_IMAGES_COLUMNS)

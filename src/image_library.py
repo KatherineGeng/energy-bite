@@ -12,6 +12,18 @@ from src.database import get_app_image_bytes, list_app_images, save_app_image
 from src.nav_params import append_nav_params
 
 GALLERY_INITIAL_COUNT = 9
+_GALLERY_THUMB_CACHE_KEY = "_gallery_thumb_b64"
+
+
+def _gallery_thumb_data_uri(image_id: str, data: bytes, mime: str) -> str:
+    cache = st.session_state.setdefault(_GALLERY_THUMB_CACHE_KEY, {})
+    entry = cache.get(image_id)
+    if isinstance(entry, dict) and entry.get("len") == len(data) and entry.get("mime") == mime:
+        return str(entry["uri"])
+    b64 = base64.b64encode(data).decode("ascii")
+    uri = f"data:{mime};base64,{b64}"
+    cache[image_id] = {"len": len(data), "mime": mime, "uri": uri}
+    return uri
 
 
 def _gallery_pick_href(image_id: str) -> str:
@@ -60,14 +72,14 @@ def _render_gallery_grid(images: list[dict[str, str]], selected_ids: list[str]) 
             continue
         filename = str(row.get("filename") or f"{img_id}.jpg")
         mime = _mime_for_filename(filename)
-        b64 = base64.b64encode(data).decode("ascii")
+        uri = _gallery_thumb_data_uri(img_id, data, mime)
         picked = img_id in selected_ids
         btn_cls = "eb-gallery-pick-btn picked" if picked else "eb-gallery-pick-btn"
         label = "✓ 已选" if picked else "选择"
         href = _gallery_pick_href(img_id)
         cells.append(
             f'<div class="eb-gallery-cell">'
-            f'<img class="eb-gallery-thumb" src="data:{mime};base64,{b64}" alt="" loading="lazy" />'
+            f'<img class="eb-gallery-thumb" src="{uri}" alt="" loading="lazy" />'
             f'<a class="{btn_cls}" href="{href}">{label}</a>'
             f"</div>"
         )

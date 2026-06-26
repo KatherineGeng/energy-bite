@@ -147,6 +147,24 @@ def ensure_today_plan_persisted() -> None:
         )
 
 
+def is_secondary_page_navigation() -> bool:
+    """Read-mostly tabs: skip full hydrate when today's state is already loaded."""
+    from src.app_time import beijing_today_iso
+    from src.client_profile import plan_user_key
+
+    page = st.session_state.get("current_page")
+    if page not in ("export", "mine"):
+        return False
+    user_key = plan_user_key()
+    if not user_key:
+        return False
+    today = beijing_today_iso()
+    return (
+        st.session_state.get("_hydrated_date") == today
+        and st.session_state.get("_hydrated_user") == user_key
+    )
+
+
 def hydrate_today_state(*, lightweight: bool = False) -> None:
     today = beijing_today_iso()
     user_key = plan_user_key()

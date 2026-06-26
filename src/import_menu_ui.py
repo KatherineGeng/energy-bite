@@ -8,25 +8,44 @@ from src.database import append_menu_from_share, get_menu_row, load_ingredients
 from src.menu_persistence import load_user_menu_archive
 from src.share_code import ShareCodeError, decode_share_code, parse_share_paste_entries
 
+_IMPORTED_ROWS_CACHE_KEY = "_imported_menu_rows_cache"
+
+
+def invalidate_imported_menu_cache() -> None:
+    st.session_state.pop(_IMPORTED_ROWS_CACHE_KEY, None)
+    st.session_state.pop("_eb_ing_name_map", None)
+
 
 def load_imported_menu_rows() -> list[dict[str, str]]:
+    cached = st.session_state.get(_IMPORTED_ROWS_CACHE_KEY)
+    if isinstance(cached, list):
+        return cached
+
     archive = load_user_menu_archive()
     if archive.empty:
+        st.session_state[_IMPORTED_ROWS_CACHE_KEY] = []
         return []
     if "source" not in archive.columns:
+        st.session_state[_IMPORTED_ROWS_CACHE_KEY] = []
         return []
     imported = archive[archive["source"].astype(str) == "import"].copy()
     if imported.empty:
+        st.session_state[_IMPORTED_ROWS_CACHE_KEY] = []
         return []
     imported = imported.sort_values("saved_at", ascending=False)
-    return [dict(row) for _, row in imported.iterrows()]
+    rows = [dict(row) for _, row in imported.iterrows()]
+    st.session_state[_IMPORTED_ROWS_CACHE_KEY] = rows
+    return rows
 
 
 def _ingredient_name_map() -> dict[str, str]:
+    cached = st.session_state.get("_eb_ing_name_map")
+    if isinstance(cached, dict):
+        return cached
     df = load_ingredients()
-    if df.empty:
-        return {}
-    return {str(r["id"]): str(r["name"]) for _, r in df.iterrows()}
+    name_map = {str(r["id"]): str(r["name"]) for _, r in df.iterrows()} if not df.empty else {}
+    st.session_state["_eb_ing_name_map"] = name_map
+    return name_map
 
 
 def _clean_tags(tags: str) -> str:
@@ -34,17 +53,6 @@ def _clean_tags(tags: str) -> str:
     if not text or "￥MENU:" in text or "\n" in text:
         return ""
     return text.replace("·", " · ")
-
-
-def _resolve_menu_display(row: dict[str, str]) -> dict[str, str]:
-    menu_id = str(row.get("menu_id", "")).strip()
-    live = get_menu_row(menu_id, {}) if menu_id else None
-    merged = dict(row)
-    if live:
-        for key, val in live.items():
-            if str(val or "").strip():
-                merged[key] = str(val)
-    return merged
 
 
 def import_menus_from_share_text(pasted: str, *, default_name: str = "") -> list[str]:
@@ -108,6 +116,7 @@ def render_import_share_form(*, key_prefix: str = "import") -> None:
                 if menu_row:
                     names.append(str(menu_row["menu_name"]))
             if names:
+                invalidate_imported_menu_cache()
                 st.session_state.export_action_panel = "import"
                 if len(names) == 1:
                     st.session_state.eb_flash_success = f"已导入「{names[0]}」· 可在「我的 → 导入菜单」查看"
@@ -139,15 +148,14 @@ def render_imported_menus_list(*, key_prefix: str = "import") -> None:
     q = keyword.strip().lower()
     shown = 0
     for row in rows:
-        item = _resolve_menu_display(row)
-        name = str(item.get("menu_name", "")).strip()
-        tags = _clean_tags(str(item.get("energy_tags", "")))
-        meal = str(item.get("meal_type", "")).strip()
+        name = str(row.get("menu_name", "")).strip()
+        tags = _clean_tags(str(row.get("energy_tags", "")))
+        meal = str(row.get("meal_type", "")).strip()
         saved = str(row.get("saved_at", ""))[:10]
-        ing_ids = [x for x in str(item.get("ingredient_ids", "")).split("|") if x]
+        ing_ids = [x for x in str(row.get("ingredient_ids", "")).split("|") if x]
         ing_names = [name_map.get(i, i) for i in ing_ids]
         ing_line = " · ".join(ing_names)
-        haystack = f"{name} {tags} {meal} {ing_line} {item.get('menu_id', '')}".lower()
+        haystack = f"{name} {tags} {meal} {ing_line} {row.get('menu_id', '')}".lower()
         if q and q not in haystack:
             continue
         shown += 1
