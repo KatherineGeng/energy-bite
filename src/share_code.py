@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 PREFIX = "￥MENU:"
 SUFFIX = "￥"
+MEAL_SLOTS = ("早餐", "午餐", "晚餐")
 
 
 @dataclass
@@ -14,6 +15,13 @@ class ShareCodePayload:
     ingredient_ids: list[str]
     energy_tags: str
     estimated_score: float
+
+
+@dataclass
+class SharePasteEntry:
+  meal_type: str
+  menu_name: str
+  code: str
 
 
 class ShareCodeError(ValueError):
@@ -61,6 +69,42 @@ def encode_day_menu_share_text(date_str: str, menu_rows: list[dict]) -> str:
         lines.append(f"{prefix}{name}")
         lines.append(code)
     return "\n".join(lines)
+
+
+def parse_share_paste_entries(text: str) -> list[SharePasteEntry]:
+    """Split a multi-line day share block into per-dish codes + labels."""
+    entries: list[SharePasteEntry] = []
+    pending_meal = ""
+    pending_name = ""
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("【"):
+            continue
+        if PREFIX in line:
+            idx = line.find(PREFIX)
+            entries.append(SharePasteEntry(pending_meal, pending_name, line[idx:].strip()))
+            pending_meal = ""
+            pending_name = ""
+            continue
+        upper = line.upper()
+        if upper.startswith("MENU:"):
+            code = line if line.startswith(PREFIX) else f"{PREFIX}{line}"
+            entries.append(SharePasteEntry(pending_meal, pending_name, code))
+            pending_meal = ""
+            pending_name = ""
+            continue
+        matched_meal = False
+        for meal in MEAL_SLOTS:
+            prefix = f"{meal}·"
+            if line.startswith(prefix):
+                pending_meal = meal
+                pending_name = line[len(prefix) :].strip()
+                matched_meal = True
+                break
+        if not matched_meal:
+            pending_name = line
+            pending_meal = ""
+    return entries
 
 
 def decode_share_code(code: str) -> ShareCodePayload:

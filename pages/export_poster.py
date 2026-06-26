@@ -411,5 +411,8 @@ def render() -> None:
     today_iso = st.session_state.get("today_date", beijing_today_iso())
     _apply_export_query_actions(str(st.session_state.get("poster_date_str", today_iso)))
 
+    if msg := st.session_state.pop("eb_flash_success", None):
+        st.success(msg)
+
     _render_top_actions()
     _render_poster_section()

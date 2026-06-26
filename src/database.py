@@ -1283,7 +1283,7 @@ def append_menu_from_share(
     ingredient_ids: list[str],
     energy_tags: str,
     menu_name: str = "",
-    meal_type: str = "午餐",
+    meal_type: str = "",
     prep_minutes: int = 15,
     description: str = "由极客口令导入",
 ) -> str:
