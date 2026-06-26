@@ -16,6 +16,7 @@ from src.database import (
 )
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
+from src.meal_plan_utils import meals_from_plan
 from src.mobile_ui import render_action_row
 from src.query_nav import pop_query_param
 from src.poster_store import (
@@ -128,6 +129,13 @@ def _plan_snapshots(date_str: str) -> dict:
 
 def _menu_rows_for_ids(menu_ids: list[str], date_str: str | None = None) -> list[dict]:
     snapshots = _plan_snapshots(date_str) if date_str else {}
+    if date_str:
+        saved = load_daily_meal_plan(date_str)
+        if saved and saved.get("plan"):
+            snapshots = dict(saved.get("snapshots") or snapshots)
+            rows = meals_from_plan(saved["plan"], lambda mid: get_menu_row(mid, snapshots))
+            if rows:
+                return rows
     rows: list[dict] = []
     for mid in menu_ids:
         row = get_menu_row(mid, snapshots)

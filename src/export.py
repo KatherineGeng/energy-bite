@@ -53,9 +53,10 @@ def generate_poster(
     photos: list[Any] | None = None,
     theme: str = "",
     snapshots: dict[str, dict[str, str]] | None = None,
+    plan: dict[str, list[str]] | None = None,
 ) -> bytes:
     if meals is None:
-        meals = meals_for_poster_from_ids(menu_ids or [], snapshots=snapshots)
+        meals = meals_for_poster_from_ids(menu_ids or [], snapshots=snapshots, plan=plan)
     meals_json = json.dumps(meals, ensure_ascii=False, sort_keys=True)
     photos_fp = _photo_fingerprint(photos)
     photos_blob = _photos_tuple(photos)

@@ -162,19 +162,31 @@ def all_menu_ids_for_poster(date_str: str) -> list[str]:
 
 def meals_for_poster(date_str: str, menu_ids: list[str]) -> list[dict[str, Any]]:
     from src.database import get_menu_row, load_daily_meal_plan
+    from src.meal_plan_utils import meals_from_plan
 
-    plan = load_daily_meal_plan(date_str)
+    plan_data = load_daily_meal_plan(date_str)
     snapshots: dict[str, dict[str, str]] = {}
-    if plan:
-        snapshots = dict(plan.get("snapshots") or {})
+    if plan_data:
+        snapshots = dict(plan_data.get("snapshots") or {})
+        plan = plan_data.get("plan") or {}
+        if plan and any(plan.get(slot) for slot in ("早餐", "午餐", "晚餐")):
+            meals = meals_from_plan(plan, lambda mid: get_menu_row(mid, snapshots))
+            if meals:
+                return meals
+
     if not snapshots:
         snapshots = dict(st.session_state.get("eb_plan_snapshots") or {})
 
     use_ids = all_menu_ids_for_poster(date_str) or list(menu_ids)
+    return meals_from_plan(
+        _plan_dict_from_ids(use_ids, snapshots),
+        lambda mid: get_menu_row(mid, snapshots),
+    )
 
-    meals: list[dict[str, Any]] = []
-    for menu_id in use_ids:
-        row = get_menu_row(menu_id, snapshots)
-        if row:
-            meals.append(row)
-    return meals
+
+def _plan_dict_from_ids(menu_ids: list[str], snapshots: dict) -> dict[str, list[str]]:
+    """Fallback when only flat menu_ids exist — use library meal_type (legacy)."""
+    from src.database import get_menu_row
+    from src.meal_plan_utils import plan_from_menu_ids
+
+    return plan_from_menu_ids(menu_ids, lambda mid: get_menu_row(mid, snapshots))

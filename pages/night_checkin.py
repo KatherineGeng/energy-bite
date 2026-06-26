@@ -28,6 +28,7 @@ from src.review_ui import (
     render_option_picker,
     render_score_picker_html,
 )
+from src.meal_plan_utils import meals_from_plan
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
 from src.user_profile import morning_greeting, nickname
@@ -333,14 +334,24 @@ def _dishes_review_fragment(confirmed: dict) -> None:
     apply_review_draft_to_session(today, menu_ids)
     _hydrate_review_favorites(menu_ids, today)
 
-    for menu_id in menu_ids:
-        menu_row = get_menu_row(menu_id, snapshots)
-        if not menu_row:
+    plan = confirmed.get("plan") or {}
+    dish_rows = meals_from_plan(plan, lambda mid: get_menu_row(mid, snapshots)) if plan else []
+    if not dish_rows:
+        for mid in menu_ids:
+            row = get_menu_row(mid, snapshots)
+            if row:
+                entry = dict(row)
+                entry["menu_id"] = mid
+                dish_rows.append(entry)
+
+    for dish in dish_rows:
+        menu_id = str(dish.get("menu_id", ""))
+        if not menu_id:
             continue
 
         with st.container(border=True):
-            meal_type = str(menu_row.get("meal_type", "")).strip()
-            dish_name = menu_row["menu_name"]
+            meal_type = str(dish.get("meal_type", "")).strip()
+            dish_name = dish["menu_name"]
             render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
             render_score_picker_html(
                 "操作从容度 (1-5分)",

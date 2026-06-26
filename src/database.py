@@ -486,15 +486,18 @@ def _build_plan_snapshots(
     plan: dict[str, list[str]],
     existing: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, dict[str, str]]:
-    from src.meal_plan_utils import flatten_plan
-
     snaps = dict(existing or {})
-    for menu_id in flatten_plan(plan):
-        if menu_id in snaps and snaps[menu_id].get("menu_name"):
-            continue
-        row = get_menu_by_id(menu_id)
-        if row:
-            snaps[menu_id] = _snapshot_from_row(row)
+    for slot in MEAL_ORDER:
+        for menu_id in plan.get(slot, []):
+            mid = str(menu_id).strip()
+            if not mid:
+                continue
+            if mid not in snaps or not snaps[mid].get("menu_name"):
+                row = get_menu_by_id(mid)
+                if row:
+                    snaps[mid] = _snapshot_from_row(row)
+            if mid in snaps:
+                snaps[mid]["meal_type"] = slot
     return snaps
 
 

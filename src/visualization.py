@@ -428,12 +428,21 @@ def generate_daily_poster(
 def meals_for_poster_from_ids(
     menu_ids: list[str],
     snapshots: dict[str, dict[str, str]] | None = None,
+    plan: dict[str, list[str]] | None = None,
 ) -> list[dict]:
     from src.database import get_menu_row
+    from src.meal_plan_utils import meals_from_plan
 
-    meals: list[dict] = []
+    if plan and any(plan.get(slot) for slot in ("早餐", "午餐", "晚餐")):
+        return meals_from_plan(plan, lambda mid: get_menu_row(mid, snapshots))
+
+    from src.meal_plan_utils import empty_meal_plan
+
+    fallback_plan = empty_meal_plan()
     for menu_id in menu_ids:
         row = get_menu_row(menu_id, snapshots)
-        if row:
-            meals.append(row)
-    return meals
+        slot = str(row.get("meal_type", "午餐") if row else "午餐")
+        if slot not in fallback_plan:
+            slot = "午餐"
+        fallback_plan[slot].append(menu_id)
+    return meals_from_plan(fallback_plan, lambda mid: get_menu_row(mid, snapshots))

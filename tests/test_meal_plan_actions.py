@@ -131,3 +131,37 @@ def test_plan_from_menu_ids_respects_slot(tmp_path, monkeypatch):
 
     plan = plan_from_menu_ids(["MENU_001", manual_id], db.get_menu_by_id)
     assert manual_id in plan["午餐"]
+
+
+def test_meals_from_plan_uses_slot_not_library_type():
+    from src.meal_plan_utils import empty_meal_plan, meals_from_plan
+
+    plan = empty_meal_plan()
+    plan["晚餐"] = ["MENU_002"]
+
+    def fake_row(menu_id: str):
+        return {"menu_id": menu_id, "menu_name": "抗炎三文鱼", "meal_type": "午餐"}
+
+    meals = meals_from_plan(plan, fake_row)
+    assert len(meals) == 1
+    assert meals[0]["meal_type"] == "晚餐"
+    assert meals[0]["menu_name"] == "抗炎三文鱼"
+
+
+def test_plan_snapshot_syncs_meal_type_to_slot(tmp_path, monkeypatch):
+    _setup_tmp_data(tmp_path, monkeypatch)
+    plan = empty_meal_plan()
+    plan["晚餐"] = ["MENU_002"]
+    snaps = db.save_daily_meal_plan("2026-06-26", plan, confirmed=True)
+    assert snaps["MENU_002"]["meal_type"] == "晚餐"
+
+    loaded = db.load_daily_meal_plan("2026-06-26")
+    assert loaded is not None
+    from src.meal_plan_utils import meals_from_plan
+
+    meals = meals_from_plan(
+        loaded["plan"],
+        lambda mid: db.get_menu_row(mid, loaded.get("snapshots")),
+    )
+    dinner = [m for m in meals if m["menu_id"] == "MENU_002"]
+    assert dinner and dinner[0]["meal_type"] == "晚餐"
