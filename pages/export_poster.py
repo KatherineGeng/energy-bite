@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import date
 from pathlib import Path
 
@@ -28,12 +29,34 @@ from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_sh
 _SAMPLE_POSTER = Path(__file__).resolve().parent.parent / "assets" / "sample_poster.png"
 
 
+def _show_poster_image_bytes(png_bytes: bytes) -> None:
+    """Inline PNG so iOS Safari can long-press → Save to Photos."""
+    b64 = base64.b64encode(png_bytes).decode("ascii")
+    st.markdown(
+        f'<img class="eb-poster-save-img" src="data:image/png;base64,{b64}" '
+        f'alt="简愈生活志海报" draggable="false" />',
+        unsafe_allow_html=True,
+    )
+
+
 def _show_poster_image(src) -> None:
     """Streamlit <1.38 lacks use_container_width on st.image (TypeError)."""
+    if isinstance(src, (bytes, bytearray)):
+        _show_poster_image_bytes(bytes(src))
+        return
     try:
         st.image(src, use_container_width=True)
     except TypeError:
         st.image(src, width=720)
+
+
+def _render_poster_save_hint() -> None:
+    st.markdown(
+        '<p class="eb-poster-save-hint">'
+        "💡 长按上方海报图片，选择「存储到照片」即可保存到本地"
+        "</p>",
+        unsafe_allow_html=True,
+    )
 
 
 def _inject_export_ui_css() -> None:
@@ -68,6 +91,25 @@ def _inject_export_ui_css() -> None:
         }
         .eb-poster-hero {
             margin: 0.15rem 0 0.55rem;
+        }
+        .eb-poster-save-img {
+            display: block;
+            width: 100%;
+            max-height: 46vh;
+            object-fit: contain;
+            margin: 0 auto;
+            border-radius: 8px;
+            -webkit-touch-callout: default !important;
+            -webkit-user-select: auto !important;
+            user-select: auto !important;
+            pointer-events: auto !important;
+        }
+        .eb-poster-save-hint {
+            font-size: 0.88rem;
+            color: #64748B;
+            text-align: center;
+            margin: 0.35rem 0 0.15rem;
+            line-height: 1.45;
         }
         .eb-poster-hero [data-testid="stImage"] {
             margin: 0 !important;
@@ -158,6 +200,7 @@ def _render_default_poster() -> None:
     st.markdown('<div class="eb-poster-hero">', unsafe_allow_html=True)
     if st.session_state.get("poster_bytes"):
         _show_poster_image(st.session_state.poster_bytes)
+        _render_poster_save_hint()
     elif _show_sample_poster():
         _show_poster_image(str(_SAMPLE_POSTER))
     st.markdown("</div>", unsafe_allow_html=True)
@@ -166,28 +209,17 @@ def _render_default_poster() -> None:
 def _render_poster_actions(date_str: str) -> None:
     if not st.session_state.get("poster_bytes"):
         return
-    dl_col, code_col = st.columns(2)
-    with dl_col:
-        st.download_button(
-            "保存至本地",
-            data=st.session_state.poster_bytes,
-            file_name=st.session_state.get("poster_filename", "jianyu_poster.png"),
-            mime="image/png",
-            use_container_width=True,
-            key="download_poster",
-        )
-    with code_col:
-        if st.button("复制菜单口令", use_container_width=True, key="gen_poster_share_code"):
-            ids = list(st.session_state.get("poster_menu_ids") or [])
-            date_for_code = str(st.session_state.get("poster_date_str", date_str))
-            rows = _menu_rows_for_ids(ids, date_for_code)
-            if rows:
-                share_text = encode_day_menu_share_text(date_for_code, rows)
-                st.session_state.poster_share_text = share_text
-                _record_shared_menus(date_for_code, ids)
-                _append_poster_history(date_for_code, ids, share_text)
-            else:
-                st.session_state.poster_share_text = ""
+    if st.button("复制菜单口令", use_container_width=True, key="gen_poster_share_code"):
+        ids = list(st.session_state.get("poster_menu_ids") or [])
+        date_for_code = str(st.session_state.get("poster_date_str", date_str))
+        rows = _menu_rows_for_ids(ids, date_for_code)
+        if rows:
+            share_text = encode_day_menu_share_text(date_for_code, rows)
+            st.session_state.poster_share_text = share_text
+            _record_shared_menus(date_for_code, ids)
+            _append_poster_history(date_for_code, ids, share_text)
+        else:
+            st.session_state.poster_share_text = ""
 
     share_text = st.session_state.get("poster_share_text", "")
     if share_text:
