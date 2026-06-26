@@ -57,7 +57,7 @@ def render_import_share_form(*, key_prefix: str = "import") -> None:
 def render_imported_menus_list(*, key_prefix: str = "import") -> None:
     rows = load_imported_menu_rows()
     if not rows:
-        st.caption("暂无导入菜单 · 可在上方粘贴口令导入")
+        st.caption("暂无导入菜单 · 可在「分享」页粘贴口令导入")
         return
 
     keyword = st.text_input(

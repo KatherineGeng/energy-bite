@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.favorites_ui import render_collapsible_favorites
+from src.favorites_ui import apply_fav_query_actions, render_collapsible_favorites
 from src.menu_review_ui import render_calendar_menu_review
 
 
@@ -32,6 +32,7 @@ def _inject_mine_css() -> None:
 
 def render() -> None:
     _inject_mine_css()
+    apply_fav_query_actions(key_prefix="mine")
 
     st.markdown('<p class="eb-mine-section-title">📅 日历菜单回顾</p>', unsafe_allow_html=True)
     render_calendar_menu_review(nav_page="mine")

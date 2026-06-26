@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import streamlit as st
 
 from src.database import load_favorites_dishes, load_favorites_menus, load_menus
-from src.import_menu_ui import render_import_share_form, render_imported_menus_list
+from src.import_menu_ui import render_imported_menus_list
+from src.nav_params import append_nav_params
 from src.theme import TEXT
 
 
@@ -16,32 +19,38 @@ def _fav_matches_keyword(haystack: str, keyword: str) -> bool:
     return q.lower() in haystack.lower()
 
 
-def _inject_fav_nav_css() -> None:
-    st.markdown(
-        """
-        <style>
-        .eb-fav-nav-row [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 0.28rem !important;
-            width: 100% !important;
-        }
-        .eb-fav-nav-row [data-testid="column"] {
-            flex: 1 1 33% !important;
-            min-width: 0 !important;
-            width: auto !important;
-        }
-        .eb-fav-nav-row button {
-            font-size: 0.76rem !important;
-            padding: 0.5rem 0.12rem !important;
-            white-space: nowrap !important;
-            min-height: 2.45rem !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+def _fav_nav_href(tab: str) -> str:
+    page = st.session_state.get("current_page", "mine")
+    return append_nav_params(f"?nav={quote(page)}&act={quote(f'fav_{tab}')}")
+
+
+def render_fav_nav_row(open_section: str | None) -> None:
+    """Three horizontal nav links (mobile-safe HTML flex row)."""
+    items = [
+        ("menus", "🌟", "全天菜单"),
+        ("dishes", "❤️", "单个菜品"),
+        ("import", "📥", "导入菜单"),
+    ]
+    parts: list[str] = []
+    for tab, icon, label in items:
+        cls = "eb-fav-nav-btn"
+        if open_section == tab:
+            cls += " primary"
+        inner = f"<span>{icon}</span><span>{label}</span>"
+        parts.append(f'<a class="{cls}" href="{_fav_nav_href(tab)}">{inner}</a>')
+    st.markdown(f'<div class="eb-fav-nav-row">{"".join(parts)}</div>', unsafe_allow_html=True)
+
+
+def apply_fav_query_actions(*, key_prefix: str = "mine") -> None:
+    from src.query_nav import pop_query_param
+
+    act = pop_query_param("act")
+    if act not in ("fav_menus", "fav_dishes", "fav_import"):
+        return
+    tab = act.removeprefix("fav_")
+    state_key = f"{key_prefix}_fav_open"
+    current = st.session_state.get(state_key)
+    st.session_state[state_key] = None if current == tab else tab
 
 
 def render_fav_menus_list(*, key_prefix: str = "fav") -> None:
@@ -106,42 +115,12 @@ def render_fav_dishes_list(*, key_prefix: str = "fav") -> None:
 
 
 def render_collapsible_favorites(*, key_prefix: str = "mine") -> None:
-    """Three toggle buttons: full-day menus, single dishes, imported menus."""
+    """Three toggle tabs: full-day menus, single dishes, imported menus (view only)."""
     if f"{key_prefix}_fav_open" not in st.session_state:
         st.session_state[f"{key_prefix}_fav_open"] = None
 
     open_section = st.session_state[f"{key_prefix}_fav_open"]
-    _inject_fav_nav_css()
-    st.markdown('<div class="eb-fav-nav-row">', unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns(3, gap="small")
-    with col_a:
-        if st.button(
-            "🌟 全天菜单",
-            key=f"{key_prefix}_btn_menus",
-            use_container_width=True,
-            type="primary" if open_section == "menus" else "secondary",
-        ):
-            st.session_state[f"{key_prefix}_fav_open"] = None if open_section == "menus" else "menus"
-            st.rerun()
-    with col_b:
-        if st.button(
-            "❤️ 单个菜品",
-            key=f"{key_prefix}_btn_dishes",
-            use_container_width=True,
-            type="primary" if open_section == "dishes" else "secondary",
-        ):
-            st.session_state[f"{key_prefix}_fav_open"] = None if open_section == "dishes" else "dishes"
-            st.rerun()
-    with col_c:
-        if st.button(
-            "📥 导入菜单",
-            key=f"{key_prefix}_btn_import",
-            use_container_width=True,
-            type="primary" if open_section == "import" else "secondary",
-        ):
-            st.session_state[f"{key_prefix}_fav_open"] = None if open_section == "import" else "import"
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_fav_nav_row(open_section)
 
     if open_section == "menus":
         st.markdown('<div class="eb-mine-panel">', unsafe_allow_html=True)
@@ -153,7 +132,5 @@ def render_collapsible_favorites(*, key_prefix: str = "mine") -> None:
         st.markdown("</div>", unsafe_allow_html=True)
     elif open_section == "import":
         st.markdown('<div class="eb-mine-panel">', unsafe_allow_html=True)
-        render_import_share_form(key_prefix=f"{key_prefix}_import")
-        st.divider()
         render_imported_menus_list(key_prefix=f"{key_prefix}_import_list")
         st.markdown("</div>", unsafe_allow_html=True)

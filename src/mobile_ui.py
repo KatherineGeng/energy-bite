@@ -77,6 +77,63 @@ def inject_mobile_css() -> None:
         }}
         .eb-action-row .eb-action-btn {{ max-width: 50% !important; }}
         .eb-action-row .eb-action-btn:only-child {{ max-width: 100% !important; flex: 1 1 100% !important; }}
+        .eb-fav-nav-row {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            justify-content: space-between !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+            margin: 0.15rem 0 0.45rem !important;
+        }}
+        .eb-fav-nav-row .eb-fav-nav-btn {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            max-width: 33.33% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.12rem !important;
+            text-decoration: none !important;
+            border-radius: 10px !important;
+            padding: 0.5rem 0.12rem !important;
+            font-size: 0.76rem !important;
+            line-height: 1.15 !important;
+            color: {TEXT} !important;
+            background: rgba(255,255,255,0.85) !important;
+            border: 1px solid rgba(141, 163, 153, 0.28) !important;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap !important;
+        }}
+        .eb-fav-nav-row .eb-fav-nav-btn.primary {{
+            background: {ACCENT} !important;
+            color: #fff !important;
+            border-color: {ACCENT} !important;
+            font-weight: 600 !important;
+        }}
+        .eb-gallery-grid {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
+            margin: 0.35rem 0 0.15rem !important;
+        }}
+        .eb-gallery-cell {{
+            flex: 0 0 calc(33.33% - 0.24rem) !important;
+            max-width: calc(33.33% - 0.24rem) !important;
+            min-width: 0 !important;
+        }}
+        .eb-gallery-thumb {{
+            display: block !important;
+            width: 100% !important;
+            height: 4.6rem !important;
+            object-fit: cover !important;
+            border-radius: 8px !important;
+            background: rgba(141, 163, 153, 0.12) !important;
+        }}
         /* 固定底栏 — 纯色背景，Safari 不用 backdrop-filter */
         .eb-bottom-nav {{
             position: fixed !important;
