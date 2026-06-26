@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from src.database import load_favorites_dishes, load_favorites_menus, load_menus
+from src.import_menu_ui import render_import_share_form, render_imported_menus_list
 from src.theme import TEXT
 
 
@@ -13,6 +14,34 @@ def _fav_matches_keyword(haystack: str, keyword: str) -> bool:
     if not q:
         return True
     return q.lower() in haystack.lower()
+
+
+def _inject_fav_nav_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .eb-fav-nav-row [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+        }
+        .eb-fav-nav-row [data-testid="column"] {
+            flex: 1 1 33% !important;
+            min-width: 0 !important;
+            width: auto !important;
+        }
+        .eb-fav-nav-row button {
+            font-size: 0.76rem !important;
+            padding: 0.5rem 0.12rem !important;
+            white-space: nowrap !important;
+            min-height: 2.45rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_fav_menus_list(*, key_prefix: str = "fav") -> None:
@@ -77,12 +106,14 @@ def render_fav_dishes_list(*, key_prefix: str = "fav") -> None:
 
 
 def render_collapsible_favorites(*, key_prefix: str = "mine") -> None:
-    """Two toggle buttons; content expands only after click."""
+    """Three toggle buttons: full-day menus, single dishes, imported menus."""
     if f"{key_prefix}_fav_open" not in st.session_state:
         st.session_state[f"{key_prefix}_fav_open"] = None
 
     open_section = st.session_state[f"{key_prefix}_fav_open"]
-    col_a, col_b = st.columns(2, gap="small")
+    _inject_fav_nav_css()
+    st.markdown('<div class="eb-fav-nav-row">', unsafe_allow_html=True)
+    col_a, col_b, col_c = st.columns(3, gap="small")
     with col_a:
         if st.button(
             "🌟 全天菜单",
@@ -101,6 +132,16 @@ def render_collapsible_favorites(*, key_prefix: str = "mine") -> None:
         ):
             st.session_state[f"{key_prefix}_fav_open"] = None if open_section == "dishes" else "dishes"
             st.rerun()
+    with col_c:
+        if st.button(
+            "📥 导入菜单",
+            key=f"{key_prefix}_btn_import",
+            use_container_width=True,
+            type="primary" if open_section == "import" else "secondary",
+        ):
+            st.session_state[f"{key_prefix}_fav_open"] = None if open_section == "import" else "import"
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if open_section == "menus":
         st.markdown('<div class="eb-mine-panel">', unsafe_allow_html=True)
@@ -109,4 +150,10 @@ def render_collapsible_favorites(*, key_prefix: str = "mine") -> None:
     elif open_section == "dishes":
         st.markdown('<div class="eb-mine-panel">', unsafe_allow_html=True)
         render_fav_dishes_list(key_prefix=f"{key_prefix}_dishes")
+        st.markdown("</div>", unsafe_allow_html=True)
+    elif open_section == "import":
+        st.markdown('<div class="eb-mine-panel">', unsafe_allow_html=True)
+        render_import_share_form(key_prefix=f"{key_prefix}_import")
+        st.divider()
+        render_imported_menus_list(key_prefix=f"{key_prefix}_import_list")
         st.markdown("</div>", unsafe_allow_html=True)

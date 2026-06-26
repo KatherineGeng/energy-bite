@@ -9,13 +9,13 @@ from pathlib import Path
 import streamlit as st
 
 from src.database import (
-    append_menu_from_share,
     get_menu_row,
     load_daily_meal_plan,
     record_menu_archive,
 )
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
+from src.import_menu_ui import render_import_share_form
 from src.meal_plan_utils import meals_from_plan
 from src.mobile_ui import render_action_row
 from src.query_nav import pop_query_param
@@ -27,7 +27,7 @@ from src.poster_store import (
     user_has_generated_poster,
 )
 from src.session_hydrate import menu_ids_for_date
-from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_share_text
+from src.share_code import encode_day_menu_share_text
 
 _SAMPLE_POSTER = Path(__file__).resolve().parent.parent / "assets" / "sample_poster.png"
 
@@ -335,34 +335,6 @@ def _render_poster_section() -> None:
     _render_bottom_actions(str(st.session_state.get("poster_date_str", today_iso)))
 
 
-def _render_import_panel() -> None:
-    st.caption("粘贴朋友分享的简愈口令，一键存入私人菜单库。")
-    pasted = st.text_area(
-        "粘贴分享口令",
-        placeholder="￥MENU:ING_001|ING_002:快速供能·肠脑舒缓:0.85￥",
-        height=88,
-        key="import_share_code",
-    )
-    import_name = st.text_input("自定义菜单名称（可选）", placeholder="留空则自动生成", key="import_menu_name")
-
-    if st.button("确认导入", type="primary", use_container_width=True, key="import_menu"):
-        try:
-            payload = decode_share_code(pasted)
-            new_id = append_menu_from_share(
-                ingredient_ids=payload.ingredient_ids,
-                energy_tags=payload.energy_tags,
-                menu_name=import_name.strip(),
-                description=f"由极客口令导入 · 预估分数 {payload.estimated_score:.2f}",
-            )
-            menu_row = get_menu_row(new_id, {})
-            if menu_row:
-                st.success(f"已导入 · {menu_row['menu_name']}（{new_id}）")
-        except ShareCodeError as exc:
-            st.error(str(exc))
-        except ValueError as exc:
-            st.error(str(exc))
-
-
 def _render_trail_panel() -> None:
     history: list[dict] = list(st.session_state.get("poster_history") or [])
     if not history:
@@ -413,7 +385,7 @@ def _render_top_actions() -> None:
 
     if panel == "import":
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
-        _render_import_panel()
+        render_import_share_form(key_prefix="export")
         st.markdown("</div>", unsafe_allow_html=True)
 
 
