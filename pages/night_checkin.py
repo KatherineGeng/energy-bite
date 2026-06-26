@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import streamlit as st
 
 from src.algorithm import recalculate_weights
@@ -17,7 +15,6 @@ from src.database import (
     save_favorite_dish,
     save_favorite_menu_set,
 )
-from src.query_nav import pop_query_param
 from src.review_persistence import (
     apply_review_draft_to_session,
     on_review_field_change,
@@ -28,8 +25,8 @@ from src.review_persistence import (
 )
 from src.review_ui import (
     render_dish_header_with_favorite,
-    render_option_picker_html,
-    render_score_picker_html,
+    render_option_picker,
+    render_score_picker,
 )
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
@@ -43,35 +40,7 @@ def _dish_favorited_in_db(menu_id: str, today: str) -> bool:
     return not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
 
 
-def _apply_morning_pick(today_iso: str) -> None:
-    raw = pop_query_param("morning_pick")
-    if not raw:
-        return
-    parts = raw.split(":", 1)
-    if len(parts) != 2:
-        return
-    field, value = parts
-    if field == "sleep" and value in SLEEP_OPTIONS:
-        st.session_state.morning_sleep = value
-    elif field == "load" and value in LOAD_OPTIONS:
-        st.session_state.morning_load = value
-    elif field == "meal_count":
-        try:
-            count = int(value)
-        except ValueError:
-            return
-        if count in MEAL_COUNT_OPTIONS:
-            st.session_state.morning_meal_count = count
-    else:
-        return
-    if try_save_morning_section(today_iso):
-        st.session_state.record_saved_flash = True
-
-
-def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
-    menu_id = pop_query_param("review_fav")
-    if not menu_id:
-        return
+def _toggle_dish_favorite(menu_id: str, today: str, menu_ids: list[str]) -> None:
     currently = _dish_favorited_in_db(menu_id, today)
     new_val = not currently
     st.session_state[f"review_{menu_id}_fav_dish"] = new_val
@@ -79,30 +48,6 @@ def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
         save_favorite_dish(menu_id, today)
     else:
         remove_favorite_dish(menu_id, today)
-    try_persist_dish_section(today, menu_ids)
-
-
-def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
-    raw = pop_query_param("review_score")
-    if not raw:
-        return
-    parts = raw.split(":", 2)
-    if len(parts) != 3:
-        return
-    menu_id, field, score_text = parts
-    try:
-        score = int(score_text)
-    except ValueError:
-        return
-    if score < 1 or score > 5:
-        return
-    if menu_id == "day" and field in ("mood", "energy"):
-        st.session_state[f"review_day_{field}"] = score
-        try_persist_day_section(today, menu_ids)
-        return
-    if field not in ("operation", "nps"):
-        return
-    st.session_state[f"review_{menu_id}_{field}"] = score
     try_persist_dish_section(today, menu_ids)
 
 
@@ -118,6 +63,8 @@ def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
 
 
 def _ritual_line() -> str:
+    from src.user_profile import nickname
+
     name = nickname()
     if name:
         return f"{name}度过了快乐健康的一天"
@@ -157,21 +104,6 @@ def _inject_review_card_css() -> None:
             color: #1E293B;
             line-height: 1.35;
         }}
-        .eb-dish-header-line {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            gap: 0.35rem !important;
-            width: 100% !important;
-            margin: 0 0 0.35rem !important;
-        }}
-        .eb-dish-header-line .eb-dish-name {{
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-        }}
         a.eb-fav-link {{
             flex: 0 0 auto !important;
             display: inline-flex !important;
@@ -181,24 +113,8 @@ def _inject_review_card_css() -> None:
             color: #64748B !important;
             font-size: 0.92rem !important;
             white-space: nowrap !important;
-            -webkit-tap-highlight-color: transparent;
         }}
-        a.eb-fav-link.active {{
-            color: #EF4444 !important;
-        }}
-        .eb-fav-heart {{
-            font-size: 1.15rem !important;
-            line-height: 1 !important;
-        }}
-        .eb-score-row {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: stretch !important;
-            gap: 0.28rem !important;
-            width: 100% !important;
-            margin: 0.15rem 0 0.5rem !important;
-        }}
+        a.eb-fav-link.active {{ color: #EF4444 !important; }}
         a.eb-score-chip {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
@@ -213,16 +129,113 @@ def _inject_review_card_css() -> None:
             font-size: 0.95rem !important;
             font-weight: 600 !important;
             text-decoration: none !important;
-            -webkit-tap-highlight-color: transparent;
-        }}
-        .eb-morning-block a.eb-score-chip {{
-            font-size: 0.82rem !important;
-            padding: 0.1rem 0.05rem !important;
         }}
         a.eb-score-chip.selected {{
             background: {ACCENT} !important;
             border-color: {ACCENT} !important;
             color: #fff !important;
+        }}
+        .eb-score-label {{
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #1E293B;
+            margin: 0.35rem 0 0.15rem;
+        }}
+        /* st.pills — match 5.0.19 eb-score-chip (fragment-fast, no page reload) */
+        .eb-review-picks + div [data-testid="stPills"] > div,
+        .eb-review-picks ~ div [data-testid="stPills"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
+        }}
+        .eb-morning-block .eb-review-picks + div [data-testid="stPills"] button,
+        .eb-morning-block .eb-review-picks ~ div [data-testid="stPills"] button {{
+            font-size: 0.82rem !important;
+        }}
+        .eb-review-picks + div [data-testid="stPills"] button,
+        .eb-review-picks ~ div [data-testid="stPills"] button {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }}
+        .eb-review-picks + div [data-testid="stPills"] button[aria-pressed="true"],
+        .eb-review-picks ~ div [data-testid="stPills"] button[aria-pressed="true"] {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
+        }}
+        /* st.button chip row — same look when st.pills unavailable */
+        .eb-review-picks + div [data-testid="stHorizontalBlock"] .stButton > button,
+        .eb-review-picks ~ div [data-testid="stHorizontalBlock"] .stButton > button {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+        }}
+        .eb-morning-block .eb-review-picks + div [data-testid="stHorizontalBlock"] .stButton > button,
+        .eb-morning-block .eb-review-picks ~ div [data-testid="stHorizontalBlock"] .stButton > button {{
+            font-size: 0.82rem !important;
+        }}
+        .eb-review-picks + div [data-testid="stHorizontalBlock"] .stButton > button[kind="primary"],
+        .eb-review-picks ~ div [data-testid="stHorizontalBlock"] .stButton > button[kind="primary"] {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
+        }}
+        .eb-review-picks + div [data-testid="stHorizontalBlock"],
+        .eb-review-picks ~ div [data-testid="stHorizontalBlock"] {{
+            gap: 0.28rem !important;
+        }}
+        /* Favorite — text link style, not big green button */
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child) {{
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 0.35rem !important;
+            margin: 0 0 0.35rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child) > [data-testid="column"]:first-child {{
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child) > [data-testid="column"]:last-child {{
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 4.8rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child) > [data-testid="column"]:last-child .stButton > button {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #64748B !important;
+            font-size: 0.92rem !important;
+            font-weight: 500 !important;
+            padding: 0.1rem 0.2rem !important;
+            min-height: 2rem !important;
+            width: auto !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(2):last-child) > [data-testid="column"]:last-child .stButton > button[kind="primary"] {{
+            color: #EF4444 !important;
+            background: transparent !important;
         }}
         .eb-morning-saved-banner {{
             background: rgba(46, 125, 96, 0.1);
@@ -232,21 +245,6 @@ def _inject_review_card_css() -> None:
             margin: 0.35rem 0 0.65rem;
             color: #1E5E46;
             font-size: 0.92rem;
-            line-height: 1.45;
-        }}
-        .eb-morning-block .eb-morning-q-title {{
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #1E293B;
-            margin: 0.5rem 0 0.25rem;
-            white-space: nowrap;
-        }}
-        .eb-score-label {{
-            font-family: 'Noto Serif SC', serif;
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #1E293B;
-            margin: 0.35rem 0 0.15rem;
         }}
         .eb-ritual {{
             text-align: center;
@@ -275,7 +273,8 @@ def _morning_saved_summary(today_iso: str) -> dict:
     return ctx or {}
 
 
-def _render_morning_section(today_iso: str) -> None:
+@st.fragment
+def _morning_review_fragment(today_iso: str) -> None:
     apply_morning_context_from_disk(today_iso)
     section_title("fa-sun", "晨间三问")
     st.caption(morning_greeting())
@@ -283,43 +282,43 @@ def _render_morning_section(today_iso: str) -> None:
     saved = _morning_saved(today_iso)
     if saved:
         summary = _morning_saved_summary(today_iso)
-        sleep_txt = summary.get("sleep", "—")
-        load_txt = summary.get("load", "—")
-        meal_txt = summary.get("meal_count", "—")
         st.markdown(
             f'<div class="eb-morning-saved-banner">'
             f"✓ <strong>今日晨间记录已保存</strong><br>"
-            f"睡眠：{sleep_txt} · 消耗：{load_txt} · 餐数：{meal_txt} 餐<br>"
-            f"<span style='opacity:0.85'>点击下方选项会自动更新，无需重复保存。</span>"
+            f"睡眠：{summary.get('sleep', '—')} · 消耗：{summary.get('load', '—')} · "
+            f"餐数：{summary.get('meal_count', '—')} 餐"
             f"</div>",
             unsafe_allow_html=True,
         )
     else:
         st.caption("请依次选择下方三项，选齐后自动保存到云端。")
 
-    st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
+    def _on_morning_pick() -> None:
+        if try_save_morning_section(today_iso):
+            st.session_state.record_saved_flash = True
 
-    render_option_picker_html(
+    st.markdown('<div class="eb-morning-block">', unsafe_allow_html=True)
+    render_option_picker(
         "一、昨晚睡眠状态",
         "",
         "morning_sleep",
         SLEEP_OPTIONS,
-        "sleep",
+        on_pick=_on_morning_pick,
     )
-    render_option_picker_html(
+    render_option_picker(
         "二、今日脑力/体力消耗",
         "",
         "morning_load",
         LOAD_OPTIONS,
-        "load",
+        on_pick=_on_morning_pick,
     )
-    render_option_picker_html(
+    render_option_picker(
         "三、今日一人食餐数",
         "",
         "morning_meal_count",
         MEAL_COUNT_OPTIONS,
-        "meal_count",
         format_label=lambda x: f"{x} 餐",
+        on_pick=_on_morning_pick,
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -327,20 +326,25 @@ def _render_morning_section(today_iso: str) -> None:
         st.success("晨间记录已保存 · 可前往「菜单」生成今日餐食。")
 
 
-def _render_evening_section(confirmed: dict) -> None:
+@st.fragment
+def _evening_review_fragment(confirmed: dict) -> None:
     menu_ids: list[str] = list(confirmed["menu_ids"])
     morning = st.session_state.get("morning_inputs", {})
     today = confirmed["date"]
 
     section_title("fa-utensils", "今日餐食评价")
 
-    _apply_review_fav_toggle(today, menu_ids)
-    _apply_review_score_pick(today, menu_ids)
-
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     snapshots = confirmed.get("snapshots", {})
     apply_review_draft_to_session(today, menu_ids)
     _hydrate_review_favorites(menu_ids, today)
+
+    def _on_dish_pick() -> None:
+        try_persist_dish_section(today, menu_ids)
+
+    def _on_day_pick() -> None:
+        try_persist_day_section(today, menu_ids)
+
     for menu_id in menu_ids:
         menu_row = get_menu_row(menu_id, snapshots)
         if not menu_row:
@@ -349,23 +353,24 @@ def _render_evening_section(confirmed: dict) -> None:
         with st.container(border=True):
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
-            render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
-
-            render_score_picker_html(
+            render_dish_header_with_favorite(
+                meal_type,
+                dish_name,
+                menu_id,
+                today,
+                on_toggle=lambda m=menu_id: _toggle_dish_favorite(m, today, menu_ids),
+            )
+            render_score_picker(
                 "操作从容度 (1-5分)",
                 "1：极其匆忙 → 5：优雅享受",
                 f"review_{menu_id}_operation",
-                menu_id,
-                "operation",
-                today,
+                on_pick=_on_dish_pick,
             )
-            render_score_picker_html(
+            render_score_picker(
                 "这道菜我还想再吃一次 (1-5分)",
                 "1：极不赞成 → 5：极度赞成",
                 f"review_{menu_id}_nps",
-                menu_id,
-                "nps",
-                today,
+                on_pick=_on_dish_pick,
             )
 
     st.checkbox(
@@ -377,21 +382,17 @@ def _render_evening_section(confirmed: dict) -> None:
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    render_score_picker_html(
+    render_score_picker(
         "情绪状态 (1-5分)",
         "1分：很低落 → 5分：很愉悦",
         "review_day_mood",
-        "day",
-        "mood",
-        today,
+        on_pick=_on_day_pick,
     )
-    render_score_picker_html(
+    render_score_picker(
         "精力水平 (1-5分)",
         "1分：很疲惫 → 5分：精力充沛",
         "review_day_energy",
-        "day",
-        "energy",
-        today,
+        on_pick=_on_day_pick,
     )
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
@@ -431,18 +432,15 @@ def _render_evening_section(confirmed: dict) -> None:
         st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown(
-        f'<p class="eb-ritual">{_ritual_line()}</p>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<p class="eb-ritual">{_ritual_line()}</p>', unsafe_allow_html=True)
 
 
 def render() -> None:
-    today_iso = st.session_state.get("today_date", date.today().isoformat())
-    _apply_morning_pick(today_iso)
+    from src.app_time import beijing_today_iso
+
+    today_iso = st.session_state.get("today_date", beijing_today_iso())
     _inject_review_card_css()
-    _render_morning_section(today_iso)
+    _morning_review_fragment(today_iso)
 
     confirmed = get_confirmed_plan(today_iso)
     if not confirmed:
@@ -452,4 +450,4 @@ def render() -> None:
     st.divider()
     section_title("fa-moon", "晚间回顾")
     st.caption("以下为您在「今日菜单」中已确认的就餐计划。")
-    _render_evening_section(confirmed)
+    _evening_review_fragment(confirmed)

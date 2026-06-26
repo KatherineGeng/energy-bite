@@ -9,15 +9,12 @@ from datetime import date
 import streamlit as st
 
 from src.app_time import beijing_today
-
 from src.constants import APP_VERSION
 from src.database import init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
-from src.app_time import beijing_today
 from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
-from src.review_nav_state import is_review_chip_navigation, restore_review_picks_from_query
 from src.profile_bootstrap import restore_profile_from_browser
 from src.query_nav import qp_first
 from src.theme import inject_theme_assets
@@ -36,7 +33,6 @@ inject_theme_assets()
 inject_mobile_css()
 
 sync_session_date()
-restore_review_picks_from_query()
 if "morning_inputs" not in st.session_state:
     st.session_state.morning_inputs = {}
 if "today_recommendations" not in st.session_state:
@@ -114,7 +110,7 @@ if not _is_admin and not profile_complete():
     render_onboarding()
     st.stop()
 
-hydrate_today_state(lightweight=is_review_chip_navigation())
+hydrate_today_state()
 
 if _page == "morning":
     from pages import morning

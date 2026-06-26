@@ -22,6 +22,14 @@ from src.share_code import ShareCodeError, decode_share_code, encode_day_menu_sh
 _SAMPLE_POSTER = Path(__file__).resolve().parent.parent / "assets" / "sample_poster.png"
 
 
+def _show_poster_image(src) -> None:
+    """Streamlit <1.38 lacks use_container_width on st.image (TypeError)."""
+    try:
+        st.image(src, use_container_width=True)
+    except TypeError:
+        st.image(src, width=720)
+
+
 def _inject_export_ui_css() -> None:
     st.markdown(
         """
@@ -143,9 +151,9 @@ def _show_sample_poster() -> bool:
 def _render_default_poster() -> None:
     st.markdown('<div class="eb-poster-hero">', unsafe_allow_html=True)
     if st.session_state.get("poster_bytes"):
-        st.image(st.session_state.poster_bytes, use_container_width=True)
+        _show_poster_image(st.session_state.poster_bytes)
     elif _show_sample_poster():
-        st.image(str(_SAMPLE_POSTER), use_container_width=True)
+        _show_poster_image(str(_SAMPLE_POSTER))
     st.markdown("</div>", unsafe_allow_html=True)
 
 
