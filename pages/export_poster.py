@@ -52,9 +52,7 @@ def _show_poster_image(src) -> None:
 
 def _render_poster_save_hint() -> None:
     st.markdown(
-        '<p class="eb-poster-save-hint">'
-        "💡 长按上方海报图片，选择「存储到照片」即可保存到本地"
-        "</p>",
+        '<p class="eb-poster-save-hint">长按上方海报图片，可存储照片。</p>',
         unsafe_allow_html=True,
     )
 
@@ -71,23 +69,35 @@ def _inject_export_ui_css() -> None:
             margin: 0 0 0.45rem;
             line-height: 1.35;
         }
-        .eb-export-top-actions [data-testid="stHorizontalBlock"] {
+        .eb-export-top-actions [data-testid="stHorizontalBlock"],
+        .eb-export-bottom-actions [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
             flex-wrap: nowrap !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
         }
-        .eb-export-top-actions [data-testid="column"] {
+        .eb-export-top-actions [data-testid="column"],
+        .eb-export-bottom-actions [data-testid="column"] {
             flex: 1 1 50% !important;
             min-width: 0 !important;
+            width: auto !important;
         }
-        .eb-export-top-actions button {
+        .eb-export-top-actions button,
+        .eb-export-bottom-actions button {
             min-height: 2.55rem !important;
             font-weight: 600 !important;
             font-size: 0.84rem !important;
             padding: 0.35rem 0.2rem !important;
+            white-space: nowrap !important;
         }
         .eb-export-trail-action button {
             min-height: 2.55rem !important;
             font-weight: 600 !important;
             font-size: 0.84rem !important;
+        }
+        .eb-export-bottom-actions {
+            margin: 0.15rem 0 0.35rem;
         }
         .eb-poster-hero {
             margin: 0.15rem 0 0.55rem;
@@ -206,20 +216,39 @@ def _render_default_poster() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_poster_actions(date_str: str) -> None:
-    if not st.session_state.get("poster_bytes"):
-        return
-    if st.button("复制菜单口令", use_container_width=True, key="gen_poster_share_code"):
-        ids = list(st.session_state.get("poster_menu_ids") or [])
-        date_for_code = str(st.session_state.get("poster_date_str", date_str))
-        rows = _menu_rows_for_ids(ids, date_for_code)
-        if rows:
-            share_text = encode_day_menu_share_text(date_for_code, rows)
-            st.session_state.poster_share_text = share_text
-            _record_shared_menus(date_for_code, ids)
-            _append_poster_history(date_for_code, ids, share_text)
-        else:
-            st.session_state.poster_share_text = ""
+def _render_poster_bottom_actions(date_str: str) -> None:
+    panel = st.session_state.get("export_action_panel")
+    has_poster = bool(st.session_state.get("poster_bytes"))
+
+    st.markdown('<div class="eb-export-bottom-actions">', unsafe_allow_html=True)
+    col_a, col_b = st.columns(2, gap="small")
+    with col_a:
+        if st.button(
+            "复制菜单口令",
+            use_container_width=True,
+            key="gen_poster_share_code",
+            disabled=not has_poster,
+        ):
+            ids = list(st.session_state.get("poster_menu_ids") or [])
+            date_for_code = str(st.session_state.get("poster_date_str", date_str))
+            rows = _menu_rows_for_ids(ids, date_for_code)
+            if rows:
+                share_text = encode_day_menu_share_text(date_for_code, rows)
+                st.session_state.poster_share_text = share_text
+                _record_shared_menus(date_for_code, ids)
+                _append_poster_history(date_for_code, ids, share_text)
+            else:
+                st.session_state.poster_share_text = ""
+    with col_b:
+        if st.button(
+            "📤 海报分享轨迹",
+            key="export_btn_trail",
+            use_container_width=True,
+            type="primary" if panel == "trail" else "secondary",
+        ):
+            st.session_state.export_action_panel = None if panel == "trail" else "trail"
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
     share_text = st.session_state.get("poster_share_text", "")
     if share_text:
@@ -229,6 +258,11 @@ def _render_poster_actions(date_str: str) -> None:
             height=140,
             key="poster_share_code_display",
         )
+
+    if panel == "trail":
+        st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
+        _render_trail_panel()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_poster_controls() -> None:
@@ -313,12 +347,11 @@ def _render_poster_section() -> None:
     today_iso = st.session_state.get("today_date", beijing_today_iso())
     restore_poster_for_display(today_iso)
     _render_default_poster()
-    if st.session_state.get("poster_bytes"):
-        _render_poster_actions(str(st.session_state.get("poster_date_str", today_iso)))
     if st.session_state.get("export_action_panel") == "poster":
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
         _render_poster_controls()
         st.markdown("</div>", unsafe_allow_html=True)
+    _render_poster_bottom_actions(str(st.session_state.get("poster_date_str", today_iso)))
 
 
 def _render_import_panel() -> None:
@@ -420,25 +453,6 @@ def _render_top_actions() -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_trail_action() -> None:
-    panel = st.session_state.get("export_action_panel")
-    st.markdown('<div class="eb-export-trail-wrap eb-export-trail-action">', unsafe_allow_html=True)
-    if st.button(
-        "📤 海报分享轨迹",
-        key="export_btn_trail",
-        use_container_width=True,
-        type="primary" if panel == "trail" else "secondary",
-    ):
-        st.session_state.export_action_panel = None if panel == "trail" else "trail"
-        st.rerun()
-
-    if panel == "trail":
-        st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
-        _render_trail_panel()
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
 def render() -> None:
     apply_gallery_pick_action()
 
@@ -461,4 +475,3 @@ def render() -> None:
 
     _render_top_actions()
     _render_poster_section()
-    _render_trail_action()

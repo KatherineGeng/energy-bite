@@ -91,6 +91,21 @@ def test_try_save_morning_waits_for_three(monkeypatch):
     assert saved == [("2026-06-24", "良好", "低", 3)]
 
 
+def test_persist_review_progress_saves_partial(monkeypatch):
+    fake = _FakeState(review_M1_operation=3)
+    calls: list[str] = []
+    monkeypatch.setattr("src.review_persistence.st.session_state", fake)
+    monkeypatch.setattr("src.review_persistence.review_day_submitted", lambda _d: False)
+    monkeypatch.setattr(
+        "src.review_persistence.persist_review_draft",
+        lambda day, ids: calls.append(day),
+    )
+    from src.review_persistence import persist_review_progress
+
+    persist_review_progress("2026-06-24", ["M1"])
+    assert calls == ["2026-06-24"]
+
+
 def test_try_persist_dish_section_waits(monkeypatch):
     fake = _FakeState(review_M1_operation=4)
     calls: list[str] = []

@@ -155,6 +155,13 @@ def persist_review_draft(day: str, menu_ids: list[str], *, completed: bool = Fal
     save_review_draft(day, payload)
 
 
+def persist_review_progress(day: str, menu_ids: list[str]) -> None:
+    """Save partial evening review picks after each score or toggle."""
+    if review_day_submitted(day):
+        return
+    persist_review_draft(day, menu_ids)
+
+
 def try_persist_dish_section(day: str, menu_ids: list[str]) -> bool:
     if review_day_submitted(day) or not dish_section_complete(menu_ids):
         return False
@@ -174,4 +181,4 @@ def on_morning_change(today_iso: str) -> None:
 
 
 def on_review_field_change(day: str, menu_ids: list[str]) -> None:
-    try_persist_day_section(day, menu_ids)
+    persist_review_progress(day, menu_ids)

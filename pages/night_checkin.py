@@ -19,15 +19,13 @@ from src.review_persistence import (
     apply_review_draft_to_session,
     on_review_field_change,
     persist_review_draft,
-    try_persist_day_section,
-    try_persist_dish_section,
+    persist_review_progress,
     try_save_morning_section,
 )
-from src.query_nav import pop_query_param
 from src.review_ui import (
     render_dish_header_with_favorite,
     render_option_picker,
-    render_score_picker_html,
+    render_score_picker,
 )
 from src.session_hydrate import apply_morning_context_from_disk, get_confirmed_plan
 from src.theme import ACCENT, section_title
@@ -41,10 +39,7 @@ def _dish_favorited_in_db(menu_id: str, today: str) -> bool:
     return not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
 
 
-def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
-    menu_id = pop_query_param("review_fav")
-    if not menu_id:
-        return
+def _toggle_dish_favorite(menu_id: str, today: str, menu_ids: list[str]) -> None:
     currently = _dish_favorited_in_db(menu_id, today)
     new_val = not currently
     st.session_state[f"review_{menu_id}_fav_dish"] = new_val
@@ -52,35 +47,7 @@ def _apply_review_fav_toggle(today: str, menu_ids: list[str]) -> None:
         save_favorite_dish(menu_id, today)
     else:
         remove_favorite_dish(menu_id, today)
-    try_persist_dish_section(today, menu_ids)
-
-
-def _apply_review_score_pick(today: str, menu_ids: list[str]) -> None:
-    raw = pop_query_param("review_score")
-    if not raw:
-        return
-    parts = raw.split(":", 2)
-    if len(parts) != 3:
-        return
-    menu_id, field, score_text = parts
-    try:
-        score = int(score_text)
-    except ValueError:
-        return
-    if score < 1 or score > 5:
-        return
-    if menu_id == "day":
-        if field == "mood":
-            st.session_state.review_day_mood = score
-            try_persist_day_section(today, menu_ids)
-        elif field == "energy":
-            st.session_state.review_day_energy = score
-            try_persist_day_section(today, menu_ids)
-        return
-    if field not in ("operation", "nps"):
-        return
-    st.session_state[f"review_{menu_id}_{field}"] = score
-    try_persist_dish_section(today, menu_ids)
+    persist_review_progress(today, menu_ids)
 
 
 def _hydrate_review_favorites(menu_ids: list[str], today: str) -> None:
@@ -136,40 +103,41 @@ def _inject_review_card_css() -> None:
             color: #1E293B;
             line-height: 1.35;
         }}
-        .eb-dish-header-line {{
-            display: flex !important;
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {{
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
-            justify-content: space-between !important;
             gap: 0.35rem !important;
-            width: 100% !important;
-            margin: 0 0 0.35rem !important;
         }}
-        .eb-dish-header-line .eb-dish-name {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
             flex: 1 1 auto !important;
             min-width: 0 !important;
-            margin: 0 !important;
+            width: auto !important;
         }}
-        a.eb-fav-link {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child:not(:only-child) {{
             flex: 0 0 auto !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 0.12rem !important;
-            text-decoration: none !important;
+            width: auto !important;
+            min-width: 4.5rem !important;
+            max-width: 5.5rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] .stButton > button {{
+            min-height: 2rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stButton > button {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
             color: #64748B !important;
             font-size: 0.92rem !important;
+            font-weight: 500 !important;
+            padding: 0.1rem 0.2rem !important;
             white-space: nowrap !important;
-            -webkit-tap-highlight-color: transparent;
         }}
-        a.eb-fav-link.active {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stButton > button[kind="primary"] {{
             color: #EF4444 !important;
+            background: transparent !important;
         }}
-        .eb-fav-heart {{
-            font-size: 1.15rem !important;
-            line-height: 1 !important;
-        }}
-        .eb-score-row {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stPills"] > div {{
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -178,12 +146,9 @@ def _inject_review_card_css() -> None:
             width: 100% !important;
             margin: 0.15rem 0 0.5rem !important;
         }}
-        a.eb-score-chip {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stPills"] button {{
             flex: 1 1 0 !important;
             min-width: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
             min-height: 2.4rem !important;
             border-radius: 10px !important;
             border: 1px solid rgba(141, 163, 153, 0.45) !important;
@@ -191,24 +156,32 @@ def _inject_review_card_css() -> None:
             color: #334155 !important;
             font-size: 0.95rem !important;
             font-weight: 600 !important;
-            text-decoration: none !important;
-            -webkit-tap-highlight-color: transparent;
+            box-shadow: none !important;
+            padding: 0 !important;
         }}
-        a.eb-score-chip.selected {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stPills"] button[aria-pressed="true"] {{
             background: {ACCENT} !important;
             border-color: {ACCENT} !important;
             color: #fff !important;
         }}
+        .eb-morning-block [data-testid="stPills"] button,
+        .eb-day-status-block [data-testid="stPills"] button {{
+            font-size: 0.82rem !important;
+        }}
         .eb-morning-block [data-testid="stPills"] > div,
+        .eb-day-status-block [data-testid="stPills"] > div,
         .eb-review-picks + div [data-testid="stPills"] > div,
         .eb-review-picks ~ div [data-testid="stPills"] > div {{
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
+            align-items: stretch !important;
             gap: 0.28rem !important;
             width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
         }}
         .eb-morning-block [data-testid="stPills"] button,
+        .eb-day-status-block [data-testid="stPills"] button,
         .eb-review-picks + div [data-testid="stPills"] button,
         .eb-review-picks ~ div [data-testid="stPills"] button {{
             flex: 1 1 0 !important;
@@ -217,13 +190,14 @@ def _inject_review_card_css() -> None:
             border-radius: 10px !important;
             border: 1px solid rgba(141, 163, 153, 0.45) !important;
             background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
             font-weight: 600 !important;
             box-shadow: none !important;
-        }}
-        .eb-morning-block [data-testid="stPills"] button {{
-            font-size: 0.82rem !important;
+            padding: 0 !important;
         }}
         .eb-morning-block [data-testid="stPills"] button[aria-pressed="true"],
+        .eb-day-status-block [data-testid="stPills"] button[aria-pressed="true"],
         .eb-review-picks + div [data-testid="stPills"] button[aria-pressed="true"],
         .eb-review-picks ~ div [data-testid="stPills"] button[aria-pressed="true"] {{
             background: {ACCENT} !important;
@@ -326,6 +300,7 @@ def _morning_review_fragment(today_iso: str) -> None:
         st.success("晨间记录已保存 · 可前往「菜单」生成今日餐食。")
 
 
+@st.fragment
 def _dishes_review_fragment(confirmed: dict) -> None:
     menu_ids: list[str] = list(confirmed["menu_ids"])
     today = confirmed["date"]
@@ -333,6 +308,9 @@ def _dishes_review_fragment(confirmed: dict) -> None:
 
     apply_review_draft_to_session(today, menu_ids)
     _hydrate_review_favorites(menu_ids, today)
+
+    def _on_dish_pick() -> None:
+        persist_review_progress(today, menu_ids)
 
     for menu_id in menu_ids:
         menu_row = get_menu_row(menu_id, snapshots)
@@ -342,22 +320,24 @@ def _dishes_review_fragment(confirmed: dict) -> None:
         with st.container(border=True):
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
-            render_dish_header_with_favorite(meal_type, dish_name, menu_id, today)
-            render_score_picker_html(
+            render_dish_header_with_favorite(
+                meal_type,
+                dish_name,
+                menu_id,
+                today,
+                on_toggle=lambda m=menu_id: _toggle_dish_favorite(m, today, menu_ids),
+            )
+            render_score_picker(
                 "操作从容度 (1-5分)",
                 "1：极其匆忙 → 5：优雅享受",
                 f"review_{menu_id}_operation",
-                menu_id,
-                "operation",
-                today,
+                on_pick=_on_dish_pick,
             )
-            render_score_picker_html(
+            render_score_picker(
                 "这道菜我还想再吃一次 (1-5分)",
                 "1：极不赞成 → 5：极度赞成",
                 f"review_{menu_id}_nps",
-                menu_id,
-                "nps",
-                today,
+                on_pick=_on_dish_pick,
             )
 
     st.checkbox(
@@ -368,29 +348,31 @@ def _dishes_review_fragment(confirmed: dict) -> None:
     )
 
 
-def _day_status_section(confirmed: dict) -> None:
+@st.fragment
+def _day_status_fragment(confirmed: dict) -> None:
     menu_ids: list[str] = list(confirmed["menu_ids"])
     morning = st.session_state.get("morning_inputs", {})
     today = confirmed["date"]
 
     section_title("fa-heart-pulse", "全天个人状态")
 
-    render_score_picker_html(
+    def _on_day_pick() -> None:
+        persist_review_progress(today, menu_ids)
+
+    st.markdown('<div class="eb-day-status-block">', unsafe_allow_html=True)
+    render_score_picker(
         "情绪状态 (1-5分)",
         "1分：很低落 → 5分：很愉悦",
         "review_day_mood",
-        "day",
-        "mood",
-        today,
+        on_pick=_on_day_pick,
     )
-    render_score_picker_html(
+    render_score_picker(
         "精力水平 (1-5分)",
         "1分：很疲惫 → 5分：精力充沛",
         "review_day_energy",
-        "day",
-        "energy",
-        today,
+        on_pick=_on_day_pick,
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("完成今日回顾，去生成日志", type="primary", use_container_width=True, key="review_submit"):
         persist_review_draft(today, menu_ids)
@@ -445,8 +427,7 @@ def render() -> None:
 
     menu_ids = list(confirmed["menu_ids"])
     today = confirmed["date"]
-    _apply_review_fav_toggle(today, menu_ids)
-    _apply_review_score_pick(today, menu_ids)
+    apply_review_draft_to_session(today, menu_ids)
 
     st.divider()
     section_title("fa-moon", "晚间回顾")
@@ -455,4 +436,4 @@ def render() -> None:
     st.markdown('<div class="eb-evening-review">', unsafe_allow_html=True)
     _dishes_review_fragment(confirmed)
     st.markdown("</div>", unsafe_allow_html=True)
-    _day_status_section(confirmed)
+    _day_status_fragment(confirmed)

@@ -1,4 +1,4 @@
-"""Review page UI — 5.0.15 HTML layout + st.pills for morning/day (fast)."""
+"""Review page UI — st.pills + @st.fragment for fast clicks, 5.0.15-style layout via CSS."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def dish_favorited(menu_id: str, today: str) -> bool:
 
 
 def dish_favorite_html(menu_id: str, today: str) -> str:
-    """Heart + 收藏 on the same line as the dish title (5.0.15 HTML link)."""
+    """Legacy HTML fav link — tests only."""
     from src.review_nav_state import chip_nav_href
 
     active = dish_favorited(menu_id, today)
@@ -37,15 +37,32 @@ def dish_favorite_html(menu_id: str, today: str) -> str:
     )
 
 
-def render_dish_header_with_favorite(meal_type: str, dish_name: str, menu_id: str, today: str) -> None:
-    """Single HTML flex row — title left, fav link right (5.0.15)."""
-    fav = dish_favorite_html(menu_id, today)
-    st.markdown(
-        f'<div class="eb-dish-header-line">'
-        f'<span class="eb-dish-name">{meal_type}：{dish_name}</span>'
-        f"{fav}</div>",
-        unsafe_allow_html=True,
-    )
+def render_dish_header_with_favorite(
+    meal_type: str,
+    dish_name: str,
+    menu_id: str,
+    today: str,
+    *,
+    on_toggle: Callable[[], None] | None = None,
+) -> None:
+    """Dish title left, heart+收藏 right — same row inside @st.fragment."""
+    active = dish_favorited(menu_id, today)
+    heart = "❤️" if active else "🤍"
+    title_col, fav_col = st.columns([6, 1], gap="small")
+    with title_col:
+        st.markdown(
+            f'<p class="eb-dish-name">{meal_type}：{dish_name}</p>',
+            unsafe_allow_html=True,
+        )
+    with fav_col:
+        st.button(
+            f"{heart} 收藏",
+            key=f"fav_btn_{menu_id}",
+            type="primary" if active else "secondary",
+            on_click=on_toggle,
+            use_container_width=True,
+            disabled=on_toggle is None,
+        )
 
 
 def render_score_picker_html(
@@ -56,7 +73,7 @@ def render_score_picker_html(
     field: str,
     today: str,
 ) -> None:
-    """Five horizontal HTML chips — stable on mobile (5.0.15)."""
+    """Legacy HTML href chips — full page reload; tests only."""
     from src.review_nav_state import chip_nav_href
 
     current = st.session_state.get(session_key)
@@ -88,6 +105,7 @@ def _pick_handler(session_key: str, value: Any, on_pick: Callable[[], None] | No
 
 def _render_score_buttons(session_key: str, on_pick: Callable[[], None] | None) -> None:
     current = st.session_state.get(session_key)
+    st.markdown('<div class="eb-review-picks">', unsafe_allow_html=True)
     cols = st.columns(5, gap="small")
     for col, score in zip(cols, range(1, 6)):
         with col:
@@ -98,6 +116,7 @@ def _render_score_buttons(session_key: str, on_pick: Callable[[], None] | None) 
                 on_click=_pick_handler(session_key, score, on_pick),
                 use_container_width=True,
             )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_option_buttons(
@@ -108,6 +127,7 @@ def _render_option_buttons(
     on_pick: Callable[[], None] | None,
 ) -> None:
     current = st.session_state.get(session_key)
+    st.markdown('<div class="eb-review-picks">', unsafe_allow_html=True)
     cols = st.columns(len(options), gap="small")
     for col, opt in zip(cols, options):
         label = format_label(opt) if format_label else str(opt)
@@ -119,6 +139,7 @@ def _render_option_buttons(
                 on_click=_pick_handler(session_key, opt, on_pick),
                 use_container_width=True,
             )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_score_picker(
@@ -128,7 +149,7 @@ def render_score_picker(
     *,
     on_pick: Callable[[], None] | None = None,
 ) -> None:
-    """st.pills for morning/day blocks inside @st.fragment."""
+    """Horizontal 1–5 chips via st.pills inside @st.fragment."""
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:
         st.caption(caption)
