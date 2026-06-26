@@ -1,9 +1,10 @@
-"""Review page UI — 5.0.19 layout + st.pills/st.fragment for fast clicks."""
+"""Review page UI — 5.0.15 HTML layout + st.pills for morning/day (fast)."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from typing import Any
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -20,31 +21,31 @@ def dish_favorited(menu_id: str, today: str) -> bool:
     return not df[(df["menu_id"] == menu_id) & (df["date"] == today)].empty
 
 
-def render_dish_header_with_favorite(
-    meal_type: str,
-    dish_name: str,
-    menu_id: str,
-    today: str,
-    *,
-    on_toggle: Callable[[], None],
-) -> None:
-    """Dish title left, heart+收藏 right — same row as 5.0.19."""
+def dish_favorite_html(menu_id: str, today: str) -> str:
+    """Heart + 收藏 on the same line as the dish title (5.0.15 HTML link)."""
+    from src.review_nav_state import chip_nav_href
+
     active = dish_favorited(menu_id, today)
+    st.session_state[f"review_{menu_id}_fav_dish"] = active
     heart = "❤️" if active else "🤍"
-    title_col, fav_col = st.columns([6, 1], gap="small")
-    with title_col:
-        st.markdown(
-            f'<p class="eb-dish-name">{meal_type}：{dish_name}</p>',
-            unsafe_allow_html=True,
-        )
-    with fav_col:
-        st.button(
-            f"{heart} 收藏",
-            key=f"fav_btn_{menu_id}",
-            type="primary" if active else "secondary",
-            on_click=on_toggle,
-            use_container_width=True,
-        )
+    page = st.session_state.get("current_page", "night")
+    href = chip_nav_href(f"?nav={quote(page)}&review_fav={quote(menu_id)}")
+    active_cls = " active" if active else ""
+    return (
+        f'<a class="eb-fav-link{active_cls}" href="{href}">'
+        f'<span class="eb-fav-heart">{heart}</span>收藏</a>'
+    )
+
+
+def render_dish_header_with_favorite(meal_type: str, dish_name: str, menu_id: str, today: str) -> None:
+    """Single HTML flex row — title left, fav link right (5.0.15)."""
+    fav = dish_favorite_html(menu_id, today)
+    st.markdown(
+        f'<div class="eb-dish-header-line">'
+        f'<span class="eb-dish-name">{meal_type}：{dish_name}</span>'
+        f"{fav}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_score_picker_html(
@@ -55,9 +56,7 @@ def render_score_picker_html(
     field: str,
     today: str,
 ) -> None:
-    """Legacy HTML href chips — full page reload; tests only."""
-    from urllib.parse import quote
-
+    """Five horizontal HTML chips — stable on mobile (5.0.15)."""
     from src.review_nav_state import chip_nav_href
 
     current = st.session_state.get(session_key)
@@ -68,34 +67,6 @@ def render_score_picker_html(
         token = f"{menu_id}:{field}:{score}"
         href = chip_nav_href(f"?nav={quote(page)}&review_score={quote(token)}")
         chips.append(f'<a class="eb-score-chip{selected}" href="{href}">{score}</a>')
-    st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
-    st.caption(caption)
-    st.markdown(f'<div class="eb-score-row">{"".join(chips)}</div>', unsafe_allow_html=True)
-
-
-def render_option_picker_html(
-    title: str,
-    caption: str,
-    session_key: str,
-    options: Sequence[Any],
-    param_field: str,
-    *,
-    format_label: Callable[[Any], str] | None = None,
-) -> None:
-    """Legacy HTML href chips — full page reload; tests only."""
-    from urllib.parse import quote
-
-    from src.review_nav_state import chip_nav_href
-
-    current = st.session_state.get(session_key)
-    page = st.session_state.get("current_page", "night")
-    chips: list[str] = []
-    for opt in options:
-        label = format_label(opt) if format_label else str(opt)
-        selected = " selected" if current == opt else ""
-        token = f"{param_field}:{opt}"
-        href = chip_nav_href(f"?nav={quote(page)}&morning_pick={quote(token)}")
-        chips.append(f'<a class="eb-score-chip{selected}" href="{href}">{label}</a>')
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:
         st.caption(caption)
@@ -117,7 +88,6 @@ def _pick_handler(session_key: str, value: Any, on_pick: Callable[[], None] | No
 
 def _render_score_buttons(session_key: str, on_pick: Callable[[], None] | None) -> None:
     current = st.session_state.get(session_key)
-    st.markdown('<div class="eb-review-picks">', unsafe_allow_html=True)
     cols = st.columns(5, gap="small")
     for col, score in zip(cols, range(1, 6)):
         with col:
@@ -128,7 +98,6 @@ def _render_score_buttons(session_key: str, on_pick: Callable[[], None] | None) 
                 on_click=_pick_handler(session_key, score, on_pick),
                 use_container_width=True,
             )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_option_buttons(
@@ -139,7 +108,6 @@ def _render_option_buttons(
     on_pick: Callable[[], None] | None,
 ) -> None:
     current = st.session_state.get(session_key)
-    st.markdown('<div class="eb-review-picks">', unsafe_allow_html=True)
     cols = st.columns(len(options), gap="small")
     for col, opt in zip(cols, options):
         label = format_label(opt) if format_label else str(opt)
@@ -151,7 +119,6 @@ def _render_option_buttons(
                 on_click=_pick_handler(session_key, opt, on_pick),
                 use_container_width=True,
             )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_score_picker(
@@ -161,7 +128,7 @@ def render_score_picker(
     *,
     on_pick: Callable[[], None] | None = None,
 ) -> None:
-    """Horizontal 1–5 chips via st.pills inside @st.fragment (fast, 5.0.19 look via CSS)."""
+    """st.pills for morning/day blocks inside @st.fragment."""
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:
         st.caption(caption)
@@ -190,7 +157,6 @@ def render_option_picker(
     format_label: Callable[[Any], str] | None = None,
     on_pick: Callable[[], None] | None = None,
 ) -> None:
-    """Horizontal option chips — same look, fragment-fast via st.pills."""
     opts = list(options)
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:

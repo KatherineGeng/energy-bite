@@ -1,8 +1,8 @@
-"""Review page — HTML chip layout (5.0.19) + fast pills path."""
+"""Review page — 5.0.15 HTML chip layout + pills for morning."""
 
 from __future__ import annotations
 
-from src.review_ui import render_dish_header_with_favorite, render_option_picker_html, render_score_picker_html
+from src.review_ui import dish_favorite_html, render_score_picker_html
 
 
 class _FakeSession(dict):
@@ -75,38 +75,7 @@ def test_day_score_picker_html(monkeypatch):
     assert "day%3Amood%3A" in row_html or "day:mood" in row_html
 
 
-def test_morning_option_picker_html(monkeypatch):
-    import streamlit as st
-
-    fake = _FakeSession(current_page="night", morning_sleep="良好")
-    monkeypatch.setattr(st, "session_state", fake)
-    captured: list[str] = []
-
-    def _markdown(html: str, **kwargs):
-        captured.append(html)
-
-    monkeypatch.setattr(st, "markdown", _markdown)
-    monkeypatch.setattr(st, "caption", lambda *a, **k: None)
-    monkeypatch.setattr(
-        "src.review_nav_state.chip_nav_href",
-        lambda url: url,
-    )
-
-    render_option_picker_html(
-        "一、昨晚睡眠状态",
-        "",
-        "morning_sleep",
-        ["很好", "良好", "一般", "较差"],
-        "sleep",
-    )
-
-    row_html = next((h for h in captured if "eb-score-row" in h), "")
-    assert row_html.count("eb-score-chip") == 4
-    assert "selected" in row_html
-    assert "morning_pick=" in row_html
-
-
-def test_favorite_uses_button_not_html_link(monkeypatch):
+def test_favorite_link_not_button(monkeypatch):
     import streamlit as st
 
     fake = _FakeSession(current_page="night")
@@ -115,22 +84,12 @@ def test_favorite_uses_button_not_html_link(monkeypatch):
         "src.review_ui.load_favorites_dishes",
         lambda: __import__("pandas").DataFrame(),
     )
-    columns_called: list = []
-    button_labels: list[str] = []
+    monkeypatch.setattr(
+        "src.review_nav_state.chip_nav_href",
+        lambda url: url,
+    )
 
-    def _columns(spec, **kwargs):
-        columns_called.append(spec)
-        return [type("C", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})() for _ in spec]
-
-    def _button(label, **kwargs):
-        button_labels.append(label)
-        return False
-
-    monkeypatch.setattr(st, "columns", _columns)
-    monkeypatch.setattr(st, "markdown", lambda *a, **k: None)
-    monkeypatch.setattr(st, "button", _button)
-
-    render_dish_header_with_favorite("午餐", "番茄炒蛋", "M001", "2026-06-18", on_toggle=lambda: None)
-
-    assert columns_called == [[6, 1]]
-    assert any("收藏" in label for label in button_labels)
+    html = dish_favorite_html("M001", "2026-06-18")
+    assert 'class="eb-fav-link' in html
+    assert "review_fav=" in html
+    assert "stButton" not in html

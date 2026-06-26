@@ -203,9 +203,9 @@ def _draw_hline(draw: ImageDraw.ImageDraw, y: int) -> None:
 
 
 def _draw_module_a(draw: ImageDraw.ImageDraw, date_str: str, theme: str) -> None:
-    date_font = _load_font(38)
-    brand_font = _load_font(24)
-    theme_font = _load_font(28)
+    date_font = _load_font(44)
+    brand_font = _load_font(28)
+    theme_font = _load_font(32)
 
     y_top = _y(0.05)
     draw.text((LEFT_MARGIN, y_top), _format_date(date_str), fill=TEXT_DARK, font=date_font)
@@ -221,10 +221,17 @@ def _draw_module_a(draw: ImageDraw.ImageDraw, date_str: str, theme: str) -> None
     _draw_hline(draw, _y(0.12))
 
 
+def _meal_detail_text(meal: dict, ingredient_map: dict[str, dict]) -> str:
+    line = _ingredient_line(meal, ingredient_map)
+    if line.startswith("(") and line.endswith(")"):
+        return line[1:-1]
+    return line
+
+
 def _draw_module_b(draw: ImageDraw.ImageDraw, meals: list[dict], ingredient_map: dict) -> None:
-    label_font = _load_font(30)
-    name_font = _load_font(36)
-    detail_font = _load_font(26)
+    label_font = _load_font(36)
+    name_font = _load_font(42)
+    detail_font = _load_font(30)
 
     meals_by_type: dict[str, list[dict]] = {mt: [] for mt in _MEAL_ORDER}
     extras: list[dict] = []
@@ -235,52 +242,60 @@ def _draw_module_b(draw: ImageDraw.ImageDraw, meals: list[dict], ingredient_map:
         else:
             extras.append(meal)
 
-    slots: list[tuple[str, dict, bool]] = []
-    for meal_type in _MEAL_ORDER:
-        group = meals_by_type.get(meal_type) or []
-        for idx, meal in enumerate(group):
-            label = _MEAL_LABELS[meal_type] if idx == 0 else ""
-            slots.append((label, meal, idx > 0))
-    for meal in extras:
-        slots.append(("", meal, True))
-
-    if not slots and meals:
-        for meal in meals:
-            meal_type = str(meal.get("meal_type") or "午餐")
-            label = _MEAL_LABELS.get(meal_type, meal_type[:1])
-            slots.append((label, meal, False))
-
     y = _y(0.15)
     detail_max_w = POSTER_WIDTH - DETAIL_X - RIGHT_MARGIN
-    name_x = LEFT_MARGIN + LABEL_COL_W
 
-    for label, meal, continuation in slots:
-        name = meal.get("menu_name", "—")
-        prefix = f"{label}：" if label else ""
-        prefix_w, _ = _text_size(draw, prefix or "午：", label_font)
-        draw_x = name_x if label or not continuation else LEFT_MARGIN + 48
-        max_name_w = POSTER_WIDTH - draw_x - RIGHT_MARGIN
-        name_lines = _wrap_by_width(draw, name, name_font, max_name_w)
+    for meal_type in _MEAL_ORDER:
+        group = meals_by_type.get(meal_type) or []
+        if not group:
+            continue
+        label = _MEAL_LABELS[meal_type]
+        names_text = "，".join(str(m.get("menu_name", "—")) for m in group)
+        prefix = f"{label}："
+        prefix_w, _ = _text_size(draw, prefix, label_font)
+        name_lines = _wrap_by_width(
+            draw,
+            names_text,
+            name_font,
+            POSTER_WIDTH - LEFT_MARGIN - prefix_w - RIGHT_MARGIN,
+        )
 
         for i, line in enumerate(name_lines):
-            if i == 0 and prefix:
+            if i == 0:
                 draw.text((LEFT_MARGIN, y), prefix, fill=TEXT_MID, font=label_font)
-                draw.text((draw_x, y), line, fill=TEXT_DARK, font=name_font)
+                draw.text((LEFT_MARGIN + prefix_w, y), line, fill=TEXT_DARK, font=name_font)
             else:
-                draw.text((draw_x, y), line, fill=TEXT_DARK, font=name_font)
+                draw.text((LEFT_MARGIN + prefix_w, y), line, fill=TEXT_DARK, font=name_font)
             _, lh = _text_size(draw, line, name_font)
             y += lh + 6
 
-        detail = _ingredient_line(meal, ingredient_map)
-        if detail:
-            for line in _wrap_by_width(draw, detail, detail_font, detail_max_w):
+        detail_parts = [_meal_detail_text(m, ingredient_map) for m in group]
+        detail_parts = [p for p in detail_parts if p]
+        if detail_parts:
+            combined = f"({' · '.join(detail_parts)})"
+            for line in _wrap_by_width(draw, combined, detail_font, detail_max_w):
                 draw.text((DETAIL_X, y), line, fill=TEXT_LIGHT, font=detail_font)
                 _, lh = _text_size(draw, line, detail_font)
                 y += lh + 5
 
         y += int(POSTER_HEIGHT * 0.018)
 
-    _draw_hline(draw, min(y + 8, _y(0.42)))
+    for meal in extras:
+        name = meal.get("menu_name", "—")
+        name_lines = _wrap_by_width(draw, str(name), name_font, CONTENT_W)
+        for line in name_lines:
+            draw.text((LEFT_MARGIN, y), line, fill=TEXT_DARK, font=name_font)
+            _, lh = _text_size(draw, line, name_font)
+            y += lh + 6
+        detail = _ingredient_line(meal, ingredient_map)
+        if detail:
+            for line in _wrap_by_width(draw, detail, detail_font, detail_max_w):
+                draw.text((DETAIL_X, y), line, fill=TEXT_LIGHT, font=detail_font)
+                _, lh = _text_size(draw, line, detail_font)
+                y += lh + 5
+        y += int(POSTER_HEIGHT * 0.018)
+
+    _draw_hline(draw, min(y + 8, _y(0.44)))
 
 
 def _load_lifestyle_placeholder() -> Image.Image | None:
@@ -346,8 +361,8 @@ def _pill_width(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
 
 
 def _draw_module_d(draw: ImageDraw.ImageDraw, tags: list[str]) -> None:
-    pill_font = _load_font(26)
-    footer_font = _load_font(24)
+    pill_font = _load_font(30)
+    footer_font = _load_font(28)
 
     display_tags = [f"#{t.replace(' ', '')}" for t in tags[:5]]
     if not display_tags:

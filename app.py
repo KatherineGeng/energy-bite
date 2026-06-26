@@ -15,6 +15,7 @@ from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_heade
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
 from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
+from src.review_nav_state import restore_review_picks_from_query
 from src.profile_bootstrap import restore_profile_from_browser
 from src.query_nav import qp_first
 from src.theme import inject_theme_assets
@@ -33,6 +34,7 @@ inject_theme_assets()
 inject_mobile_css()
 
 sync_session_date()
+restore_review_picks_from_query()
 if "morning_inputs" not in st.session_state:
     st.session_state.morning_inputs = {}
 if "today_recommendations" not in st.session_state:
