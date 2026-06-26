@@ -7,8 +7,6 @@ from typing import Any
 
 import streamlit as st
 
-from src.meal_plan_utils import MEAL_ORDER
-
 
 def _cache() -> dict[str, bytes]:
     if "poster_cache" not in st.session_state:
@@ -143,41 +141,23 @@ def user_has_generated_poster() -> bool:
     return False
 
 
-def primary_menu_ids_for_poster(date_str: str) -> list[str]:
-    """One primary dish per meal slot (晨/午/晚) — matches poster canvas."""
+def all_menu_ids_for_poster(date_str: str) -> list[str]:
+    """Full confirmed menu in meal-slot order (早餐→午餐→晚餐, all dishes)."""
     from src.database import load_daily_meal_plan
+    from src.meal_plan_utils import flatten_plan
 
     saved = load_daily_meal_plan(date_str)
     if saved and saved.get("plan"):
-        plan = saved["plan"]
-        ids: list[str] = []
-        for meal_type in MEAL_ORDER:
-            slot = plan.get(meal_type) or []
-            if slot:
-                ids.append(str(slot[0]))
+        ids = flatten_plan(saved["plan"])
         if ids:
-            return ids
+            return [str(x) for x in ids]
 
     from src.session_hydrate import menu_ids_for_date
 
-    all_ids = menu_ids_for_date(date_str)
-    if not all_ids:
-        return list(st.session_state.get("final_daily_list") or st.session_state.get("current_day_menus") or [])
-
-    from src.database import get_menu_row
-
-    snapshots = dict(saved.get("snapshots") or {}) if saved else dict(st.session_state.get("eb_plan_snapshots") or {})
-    by_type: dict[str, str] = {}
-    for menu_id in all_ids:
-        row = get_menu_row(menu_id, snapshots)
-        meal_type = str(row.get("meal_type", "午餐") if row else "午餐")
-        if meal_type not in by_type:
-            by_type[meal_type] = menu_id
-    ids = []
-    for meal_type in MEAL_ORDER:
-        if meal_type in by_type:
-            ids.append(by_type[meal_type])
-    return ids or list(all_ids)
+    ids = menu_ids_for_date(date_str)
+    if ids:
+        return list(ids)
+    return list(st.session_state.get("final_daily_list") or st.session_state.get("current_day_menus") or [])
 
 
 def meals_for_poster(date_str: str, menu_ids: list[str]) -> list[dict[str, Any]]:
@@ -190,8 +170,7 @@ def meals_for_poster(date_str: str, menu_ids: list[str]) -> list[dict[str, Any]]
     if not snapshots:
         snapshots = dict(st.session_state.get("eb_plan_snapshots") or {})
 
-    primary_ids = primary_menu_ids_for_poster(date_str)
-    use_ids = primary_ids if primary_ids else menu_ids
+    use_ids = all_menu_ids_for_poster(date_str) or list(menu_ids)
 
     meals: list[dict[str, Any]] = []
     for menu_id in use_ids:

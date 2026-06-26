@@ -104,34 +104,27 @@ def _inject_review_card_css() -> None:
             color: #1E293B;
             line-height: 1.35;
         }}
-        .eb-dish-header-line {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            gap: 0.35rem !important;
-            width: 100% !important;
-            margin: 0 0 0.35rem !important;
-        }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:first-of-type {{
-            display: flex !important;
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {{
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
             gap: 0.35rem !important;
-            margin: 0 0 0.35rem !important;
         }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:first-of-type > [data-testid="column"]:first-child {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
             flex: 1 1 auto !important;
             min-width: 0 !important;
+            width: auto !important;
         }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:first-of-type > [data-testid="column"]:last-child {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child:not(:only-child) {{
             flex: 0 0 auto !important;
             width: auto !important;
             min-width: 4.5rem !important;
+            max-width: 5.5rem !important;
         }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:first-of-type .stButton > button {{
+        [data-testid="stVerticalBlockBorderWrapper"] .stButton > button {{
+            min-height: 2rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stButton > button {{
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -139,12 +132,78 @@ def _inject_review_card_css() -> None:
             font-size: 0.92rem !important;
             font-weight: 500 !important;
             padding: 0.1rem 0.2rem !important;
-            min-height: 2rem !important;
             white-space: nowrap !important;
         }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:first-of-type .stButton > button[kind="primary"] {{
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]:first-of-type .stButton > button[kind="primary"] {{
             color: #EF4444 !important;
             background: transparent !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stPills"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stPills"] button {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }}
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stPills"] button[aria-pressed="true"] {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
+        }}
+        .eb-morning-block [data-testid="stPills"] button,
+        .eb-day-status-block [data-testid="stPills"] button {{
+            font-size: 0.82rem !important;
+        }}
+        .eb-morning-block [data-testid="stPills"] > div,
+        .eb-day-status-block [data-testid="stPills"] > div,
+        .eb-review-picks + div [data-testid="stPills"] > div,
+        .eb-review-picks ~ div [data-testid="stPills"] > div {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            gap: 0.28rem !important;
+            width: 100% !important;
+            margin: 0.15rem 0 0.5rem !important;
+        }}
+        .eb-morning-block [data-testid="stPills"] button,
+        .eb-day-status-block [data-testid="stPills"] button,
+        .eb-review-picks + div [data-testid="stPills"] button,
+        .eb-review-picks ~ div [data-testid="stPills"] button {{
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            min-height: 2.4rem !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(141, 163, 153, 0.45) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #334155 !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }}
+        .eb-morning-block [data-testid="stPills"] button[aria-pressed="true"],
+        .eb-day-status-block [data-testid="stPills"] button[aria-pressed="true"],
+        .eb-review-picks + div [data-testid="stPills"] button[aria-pressed="true"],
+        .eb-review-picks ~ div [data-testid="stPills"] button[aria-pressed="true"] {{
+            background: {ACCENT} !important;
+            border-color: {ACCENT} !important;
+            color: #fff !important;
         }}
         .eb-score-row {{
             display: flex !important;
@@ -181,63 +240,6 @@ def _inject_review_card_css() -> None:
             font-weight: 600;
             color: #1E293B;
             margin: 0.35rem 0 0.15rem;
-        }}
-        .eb-morning-block .eb-review-picks ~ div [data-testid="stPills"] button {{
-            font-size: 0.82rem !important;
-        }}
-        .eb-day-status-block .eb-review-picks + div [data-testid="stPills"] > div,
-        .eb-day-status-block .eb-review-picks ~ div [data-testid="stPills"] > div,
-        .eb-morning-block .eb-review-picks + div [data-testid="stPills"] > div,
-        .eb-morning-block .eb-review-picks ~ div [data-testid="stPills"] > div {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: stretch !important;
-            gap: 0.28rem !important;
-            width: 100% !important;
-            margin: 0.15rem 0 0.5rem !important;
-        }}
-        .eb-day-status-block [data-testid="stPills"] button,
-        .eb-morning-block [data-testid="stPills"] button {{
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
-            min-height: 2.4rem !important;
-            border-radius: 10px !important;
-            border: 1px solid rgba(141, 163, 153, 0.45) !important;
-            background: rgba(255, 255, 255, 0.9) !important;
-            color: #334155 !important;
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }}
-        .eb-day-status-block [data-testid="stPills"] button[aria-pressed="true"],
-        .eb-morning-block [data-testid="stPills"] button[aria-pressed="true"] {{
-            background: {ACCENT} !important;
-            border-color: {ACCENT} !important;
-            color: #fff !important;
-        }}
-        /* Dish card — score chip rows (not the header/fav row) */
-        .eb-dish-card [data-testid="stHorizontalBlock"]:not(:first-of-type) .stButton > button {{
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
-            min-height: 2.4rem !important;
-            border-radius: 10px !important;
-            border: 1px solid rgba(141, 163, 153, 0.45) !important;
-            background: rgba(255, 255, 255, 0.9) !important;
-            color: #334155 !important;
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:not(:first-of-type) .stButton > button[kind="primary"] {{
-            background: {ACCENT} !important;
-            border-color: {ACCENT} !important;
-            color: #fff !important;
-        }}
-        .eb-dish-card [data-testid="stHorizontalBlock"]:not(:first-of-type) {{
-            gap: 0.28rem !important;
         }}
         .eb-morning-saved-banner {{
             background: rgba(46, 125, 96, 0.1);
@@ -346,7 +348,6 @@ def _dishes_review_fragment(confirmed: dict) -> None:
             continue
 
         with st.container(border=True):
-            st.markdown('<div class="eb-dish-card">', unsafe_allow_html=True)
             meal_type = str(menu_row.get("meal_type", "")).strip()
             dish_name = menu_row["menu_name"]
             render_dish_header_with_favorite(
@@ -361,16 +362,13 @@ def _dishes_review_fragment(confirmed: dict) -> None:
                 "1：极其匆忙 → 5：优雅享受",
                 f"review_{menu_id}_operation",
                 on_pick=_on_dish_pick,
-                use_button_chips=True,
             )
             render_score_picker(
                 "这道菜我还想再吃一次 (1-5分)",
                 "1：极不赞成 → 5：极度赞成",
                 f"review_{menu_id}_nps",
                 on_pick=_on_dish_pick,
-                use_button_chips=True,
             )
-            st.markdown("</div>", unsafe_allow_html=True)
 
     st.checkbox(
         "🌟 收藏今日整套全天菜单",

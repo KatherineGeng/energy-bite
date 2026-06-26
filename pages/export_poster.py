@@ -16,8 +16,8 @@ from src.database import (
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
 from src.poster_store import (
+    all_menu_ids_for_poster,
     meals_for_poster,
-    primary_menu_ids_for_poster,
     restore_poster_for_display,
     save_poster_state,
     user_has_generated_poster,
@@ -204,7 +204,7 @@ def _render_poster_controls() -> None:
 
     today = beijing_today()
     today_iso = beijing_today_iso()
-    default_ids = primary_menu_ids_for_poster(today_iso) or _today_menu_ids()
+    default_ids = all_menu_ids_for_poster(today_iso) or _today_menu_ids()
 
     if default_ids:
         st.markdown(
@@ -219,7 +219,7 @@ def _render_poster_controls() -> None:
     if date_str == today_iso and default_ids:
         menu_ids = default_ids
     else:
-        menu_ids = primary_menu_ids_for_poster(date_str) or menu_ids_for_date(date_str)
+        menu_ids = all_menu_ids_for_poster(date_str) or menu_ids_for_date(date_str)
 
     if menu_ids:
         _render_menu_summary(date_str, menu_ids)

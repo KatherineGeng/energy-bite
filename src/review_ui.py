@@ -1,4 +1,4 @@
-"""Review page UI — fast fragment pills (5.0.19 look) + HTML fallback."""
+"""Review page UI — 5.0.19 layout + st.pills/st.fragment for fast clicks."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def render_dish_header_with_favorite(
     *,
     on_toggle: Callable[[], None],
 ) -> None:
-    """Dish title left, heart+收藏 right — 5.0.19 flex row."""
+    """Dish title left, heart+收藏 right — same row as 5.0.19."""
     active = dish_favorited(menu_id, today)
     heart = "❤️" if active else "🤍"
     title_col, fav_col = st.columns([6, 1], gap="small")
@@ -160,15 +160,12 @@ def render_score_picker(
     session_key: str,
     *,
     on_pick: Callable[[], None] | None = None,
-    use_button_chips: bool = False,
 ) -> None:
-    """Horizontal 1–5 chips; st.pills in @st.fragment avoids full-page reload."""
+    """Horizontal 1–5 chips via st.pills inside @st.fragment (fast, 5.0.19 look via CSS)."""
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:
         st.caption(caption)
-    if use_button_chips or not _uses_fast_pills():
-        _render_score_buttons(session_key, on_pick)
-    else:
+    if _uses_fast_pills():
         st.markdown('<div class="eb-review-picks">', unsafe_allow_html=True)
         st.pills(
             title,
@@ -180,6 +177,8 @@ def render_score_picker(
             on_change=on_pick,
         )
         st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        _render_score_buttons(session_key, on_pick)
 
 
 def render_option_picker(
