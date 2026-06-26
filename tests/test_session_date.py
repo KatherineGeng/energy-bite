@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import date as real_date
 from pathlib import Path
 
 import streamlit as st
@@ -34,8 +35,8 @@ class _SessionState(dict):
 
 
 def test_sync_session_date_clears_stale_day(monkeypatch):
+    import src.app_time as at
     import src.session_hydrate as sh
-    from datetime import date as real_date
 
     fake_state = _SessionState(
         today_date="2026-06-22",
@@ -44,7 +45,8 @@ def test_sync_session_date_clears_stale_day(monkeypatch):
         menu_locked=True,
     )
     monkeypatch.setattr(st, "session_state", fake_state)
-    monkeypatch.setattr(sh, "date", type("D", (), {"today": staticmethod(lambda: real_date(2026, 6, 23))}))
+    monkeypatch.setattr(at, "beijing_today", lambda: real_date(2026, 6, 23))
+    monkeypatch.setattr(sh, "beijing_today_iso", lambda: "2026-06-23")
 
     today = sync_session_date()
     assert today == "2026-06-23"

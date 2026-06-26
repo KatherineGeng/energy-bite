@@ -9,7 +9,7 @@ from urllib.parse import quote
 import streamlit as st
 
 from src.database import load_favorites_dishes
-from src.nav_params import append_nav_params
+from src.review_nav_state import chip_nav_href
 
 
 def dish_favorited(menu_id: str, today: str) -> bool:
@@ -28,7 +28,7 @@ def dish_favorite_html(menu_id: str, today: str) -> str:
     st.session_state[f"review_{menu_id}_fav_dish"] = active
     heart = "❤️" if active else "🤍"
     page = st.session_state.get("current_page", "night")
-    href = append_nav_params(f"?nav={quote(page)}&review_fav={quote(menu_id)}")
+    href = chip_nav_href(f"?nav={quote(page)}&review_fav={quote(menu_id)}")
     active_cls = " active" if active else ""
     return (
         f'<a class="eb-fav-link{active_cls}" href="{href}">'
@@ -61,7 +61,7 @@ def render_score_picker_html(
     for score in range(1, 6):
         selected = " selected" if current == score else ""
         token = f"{menu_id}:{field}:{score}"
-        href = append_nav_params(f"?nav={quote(page)}&review_score={quote(token)}")
+        href = chip_nav_href(f"?nav={quote(page)}&review_score={quote(token)}")
         chips.append(f'<a class="eb-score-chip{selected}" href="{href}">{score}</a>')
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     st.caption(caption)
@@ -85,7 +85,7 @@ def render_option_picker_html(
         label = format_label(opt) if format_label else str(opt)
         selected = " selected" if current == opt else ""
         token = f"{param_field}:{opt}"
-        href = append_nav_params(f"?nav={quote(page)}&morning_pick={quote(token)}")
+        href = chip_nav_href(f"?nav={quote(page)}&morning_pick={quote(token)}")
         chips.append(f'<a class="eb-score-chip{selected}" href="{href}">{label}</a>')
     st.markdown(f'<p class="eb-score-label">{title}</p>', unsafe_allow_html=True)
     if caption:

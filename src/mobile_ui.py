@@ -429,7 +429,9 @@ def inject_mobile_css() -> None:
 
 
 def render_top_header(for_date: date | None = None) -> None:
-    d = for_date or date.today()
+    from src.app_time import beijing_today
+
+    d = for_date or beijing_today()
     version = display_version(APP_VERSION)
     today_line = format_today_cn(d)
     name = nickname()

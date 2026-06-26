@@ -23,7 +23,7 @@ def test_score_picker_html_row(monkeypatch):
     monkeypatch.setattr(st, "markdown", _markdown)
     monkeypatch.setattr(st, "caption", lambda *a, **k: None)
     monkeypatch.setattr(
-        "src.review_ui.append_nav_params",
+        "src.review_ui.chip_nav_href",
         lambda url: url,
     )
 
@@ -57,7 +57,7 @@ def test_day_score_picker_html(monkeypatch):
     monkeypatch.setattr(st, "markdown", _markdown)
     monkeypatch.setattr(st, "caption", lambda *a, **k: None)
     monkeypatch.setattr(
-        "src.review_ui.append_nav_params",
+        "src.review_ui.chip_nav_href",
         lambda url: url,
     )
 
@@ -88,7 +88,7 @@ def test_morning_option_picker_html(monkeypatch):
     monkeypatch.setattr(st, "markdown", _markdown)
     monkeypatch.setattr(st, "caption", lambda *a, **k: None)
     monkeypatch.setattr(
-        "src.review_ui.append_nav_params",
+        "src.review_ui.chip_nav_href",
         lambda url: url,
     )
 
@@ -116,7 +116,7 @@ def test_favorite_link_not_button(monkeypatch):
         lambda: __import__("pandas").DataFrame(),
     )
     monkeypatch.setattr(
-        "src.review_ui.append_nav_params",
+        "src.review_ui.chip_nav_href",
         lambda url: url,
     )
 

@@ -8,12 +8,16 @@ from datetime import date
 
 import streamlit as st
 
+from src.app_time import beijing_today
+
 from src.constants import APP_VERSION
 from src.database import init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
 from src.pwa_head import inject_pwa_head
 from src.query_nav import apply_query_nav
+from src.app_time import beijing_today
 from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
+from src.review_nav_state import is_review_chip_navigation, restore_review_picks_from_query
 from src.profile_bootstrap import restore_profile_from_browser
 from src.query_nav import qp_first
 from src.theme import inject_theme_assets
@@ -32,6 +36,7 @@ inject_theme_assets()
 inject_mobile_css()
 
 sync_session_date()
+restore_review_picks_from_query()
 if "morning_inputs" not in st.session_state:
     st.session_state.morning_inputs = {}
 if "today_recommendations" not in st.session_state:
@@ -61,7 +66,7 @@ if "eb_add_ui" not in st.session_state:
 if "menu_gen_count" not in st.session_state:
     st.session_state.menu_gen_count = 0
 if "menu_gen_date" not in st.session_state:
-    st.session_state.menu_gen_date = date.today().isoformat()
+    st.session_state.menu_gen_date = beijing_today().isoformat()
 if "last_gen_source" not in st.session_state:
     st.session_state.last_gen_source = None
 if "last_gen_note" not in st.session_state:
@@ -102,14 +107,14 @@ else:
 _page = st.session_state.current_page
 _is_admin = _page == "admin" or qp_first("nav") == "admin"
 
-render_top_header(date.today())
+render_top_header(beijing_today())
 
 if not _is_admin and not profile_complete():
     clear_menu_session_state()
     render_onboarding()
     st.stop()
 
-hydrate_today_state()
+hydrate_today_state(lightweight=is_review_chip_navigation())
 
 if _page == "morning":
     from pages import morning

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import streamlit as st
 
+from src.app_time import beijing_today, beijing_today_iso
 from src.client_profile import plan_user_key
 from src.database import load_daily_meal_plan, load_morning_context, save_daily_meal_plan
 from src.meal_plan_utils import empty_meal_plan, flatten_plan
@@ -14,8 +13,8 @@ from src.query_nav import clear_query_key, qp_first
 
 
 def sync_session_date() -> str:
-    """Always align session to the real calendar day (fixes stale date after midnight)."""
-    today = date.today().isoformat()
+    """Always align session to Beijing calendar day."""
+    today = beijing_today_iso()
     prev = st.session_state.get("today_date")
     st.session_state.today_date = today
     if prev and prev != today:
@@ -56,7 +55,7 @@ def apply_morning_context_from_disk(day: str | None = None) -> bool:
     """Load saved morning answers into session — never overwrite in-progress picks."""
     from src.review_persistence import mark_morning_disk_signature, morning_section_complete
 
-    target = day or st.session_state.get("today_date", date.today().isoformat())
+    target = day or st.session_state.get("today_date", beijing_today_iso())
     ctx = load_morning_context(target)
     if not ctx:
         return False
@@ -119,7 +118,7 @@ def ensure_today_plan_persisted() -> None:
     if not plan_user_key():
         return
 
-    today = st.session_state.get("today_date", date.today().isoformat())
+    today = st.session_state.get("today_date", beijing_today_iso())
     if load_daily_meal_plan(today):
         return
 
@@ -148,12 +147,18 @@ def ensure_today_plan_persisted() -> None:
         )
 
 
-def hydrate_today_state() -> None:
-    today = date.today().isoformat()
+def hydrate_today_state(*, lightweight: bool = False) -> None:
+    today = beijing_today_iso()
     user_key = plan_user_key()
     st.session_state.today_date = today
 
     if not user_key:
+        return
+
+    if lightweight and (
+        st.session_state.get("_hydrated_date") == today
+        and st.session_state.get("_hydrated_user") == user_key
+    ):
         return
 
     if (
@@ -188,18 +193,7 @@ def hydrate_today_state() -> None:
 
     ctx = load_morning_context(today)
     if ctx:
-        st.session_state.morning_sleep = ctx["sleep"]
-        st.session_state.morning_load = ctx["load"]
-        st.session_state.morning_meal_count = int(ctx["meal_count"])
-        st.session_state.morning_inputs = {
-            "sleep": ctx["sleep"],
-            "load": ctx["load"],
-            "meal_count": int(ctx["meal_count"]),
-        }
-        st.session_state.morning_context_loaded = today
-        from src.review_persistence import mark_morning_disk_signature
-
-        mark_morning_disk_signature(today, ctx["sleep"], ctx["load"], int(ctx["meal_count"]))
+        apply_morning_context_from_disk(today)
     elif st.session_state.get("morning_context_loaded") != today:
         in_progress = any(st.session_state.get(key) is not None for key in ("morning_sleep", "morning_load", "morning_meal_count"))
         if not in_progress:
@@ -213,7 +207,7 @@ def hydrate_today_state() -> None:
 
 def get_confirmed_plan(day: str | None = None) -> dict | None:
     """Return confirmed plan for a date (disk first, then session for today)."""
-    target = day or st.session_state.get("today_date", date.today().isoformat())
+    target = day or st.session_state.get("today_date", beijing_today_iso())
     saved = load_daily_meal_plan(target)
     if saved and saved["confirmed"] and saved["menu_ids"]:
         return saved
@@ -236,7 +230,7 @@ def menu_ids_for_date(day: str) -> list[str]:
     saved = load_daily_meal_plan(day)
     if saved and saved["menu_ids"]:
         return list(saved["menu_ids"])
-    if day == st.session_state.get("today_date", date.today().isoformat()):
+    if day == st.session_state.get("today_date", beijing_today_iso()):
         if st.session_state.get("menu_locked"):
             return list(st.session_state.get("final_daily_list") or [])
         return list(st.session_state.get("current_day_menus") or [])
