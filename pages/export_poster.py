@@ -16,6 +16,8 @@ from src.database import (
 )
 from src.export import generate_poster
 from src.image_library import apply_gallery_pick_action, render_gallery_picker, save_uploads_to_library
+from src.mobile_ui import render_action_row
+from src.query_nav import pop_query_param
 from src.poster_store import (
     all_menu_ids_for_poster,
     meals_for_poster,
@@ -69,36 +71,6 @@ def _inject_export_ui_css() -> None:
             margin: 0 0 0.45rem;
             line-height: 1.35;
         }
-        .eb-export-top-actions [data-testid="stHorizontalBlock"],
-        .eb-export-bottom-actions [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 0.35rem !important;
-            width: 100% !important;
-        }
-        .eb-export-top-actions [data-testid="column"],
-        .eb-export-bottom-actions [data-testid="column"] {
-            flex: 1 1 50% !important;
-            min-width: 0 !important;
-            width: auto !important;
-        }
-        .eb-export-top-actions button,
-        .eb-export-bottom-actions button {
-            min-height: 2.55rem !important;
-            font-weight: 600 !important;
-            font-size: 0.84rem !important;
-            padding: 0.35rem 0.2rem !important;
-            white-space: nowrap !important;
-        }
-        .eb-export-trail-action button {
-            min-height: 2.55rem !important;
-            font-weight: 600 !important;
-            font-size: 0.84rem !important;
-        }
-        .eb-export-bottom-actions {
-            margin: 0.15rem 0 0.35rem;
-        }
         .eb-poster-hero {
             margin: 0.15rem 0 0.55rem;
         }
@@ -132,9 +104,6 @@ def _inject_export_ui_css() -> None:
         .eb-export-panel {
             margin: 0.35rem 0 0.55rem;
             padding: 0.65rem 0.55rem 0.25rem;
-        }
-        .eb-export-trail-wrap {
-            margin-top: 0.35rem;
         }
         </style>
         """,
@@ -206,6 +175,36 @@ def _show_sample_poster() -> bool:
     return _SAMPLE_POSTER.is_file()
 
 
+def _generate_poster_share_code(date_str: str) -> None:
+    if not st.session_state.get("poster_bytes"):
+        return
+    ids = list(st.session_state.get("poster_menu_ids") or [])
+    date_for_code = str(st.session_state.get("poster_date_str", date_str))
+    rows = _menu_rows_for_ids(ids, date_for_code)
+    if rows:
+        share_text = encode_day_menu_share_text(date_for_code, rows)
+        st.session_state.poster_share_text = share_text
+        _record_shared_menus(date_for_code, ids)
+        _append_poster_history(date_for_code, ids, share_text)
+    else:
+        st.session_state.poster_share_text = ""
+
+
+def _apply_export_query_actions(date_str: str) -> None:
+    act = pop_query_param("act")
+    if not act:
+        return
+    panel = st.session_state.get("export_action_panel")
+    if act == "export_poster":
+        st.session_state.export_action_panel = None if panel == "poster" else "poster"
+    elif act == "export_import":
+        st.session_state.export_action_panel = None if panel == "import" else "import"
+    elif act == "export_trail":
+        st.session_state.export_action_panel = None if panel == "trail" else "trail"
+    elif act == "export_share_code":
+        _generate_poster_share_code(date_str)
+
+
 def _render_default_poster() -> None:
     st.markdown('<div class="eb-poster-hero">', unsafe_allow_html=True)
     if st.session_state.get("poster_bytes"):
@@ -216,39 +215,13 @@ def _render_default_poster() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_poster_bottom_actions(date_str: str) -> None:
+def _render_bottom_actions(date_str: str) -> None:
     panel = st.session_state.get("export_action_panel")
     has_poster = bool(st.session_state.get("poster_bytes"))
-
-    st.markdown('<div class="eb-export-bottom-actions">', unsafe_allow_html=True)
-    col_a, col_b = st.columns(2, gap="small")
-    with col_a:
-        if st.button(
-            "复制菜单口令",
-            use_container_width=True,
-            key="gen_poster_share_code",
-            disabled=not has_poster,
-        ):
-            ids = list(st.session_state.get("poster_menu_ids") or [])
-            date_for_code = str(st.session_state.get("poster_date_str", date_str))
-            rows = _menu_rows_for_ids(ids, date_for_code)
-            if rows:
-                share_text = encode_day_menu_share_text(date_for_code, rows)
-                st.session_state.poster_share_text = share_text
-                _record_shared_menus(date_for_code, ids)
-                _append_poster_history(date_for_code, ids, share_text)
-            else:
-                st.session_state.poster_share_text = ""
-    with col_b:
-        if st.button(
-            "📤 海报分享轨迹",
-            key="export_btn_trail",
-            use_container_width=True,
-            type="primary" if panel == "trail" else "secondary",
-        ):
-            st.session_state.export_action_panel = None if panel == "trail" else "trail"
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_action_row([
+        ("export_share_code", "📋", "复制菜单口令", False, not has_poster),
+        ("export_trail", "📤", "海报分享轨迹", panel == "trail", False),
+    ])
 
     share_text = st.session_state.get("poster_share_text", "")
     if share_text:
@@ -351,7 +324,7 @@ def _render_poster_section() -> None:
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
         _render_poster_controls()
         st.markdown("</div>", unsafe_allow_html=True)
-    _render_poster_bottom_actions(str(st.session_state.get("poster_date_str", today_iso)))
+    _render_bottom_actions(str(st.session_state.get("poster_date_str", today_iso)))
 
 
 def _render_import_panel() -> None:
@@ -425,27 +398,10 @@ def _render_top_actions() -> None:
         st.session_state.export_action_panel = None
 
     panel = st.session_state.export_action_panel
-    st.markdown('<div class="eb-export-top-actions">', unsafe_allow_html=True)
-    col_a, col_b = st.columns(2, gap="small")
-    with col_a:
-        if st.button(
-            "🖼️ 制作菜单海报",
-            key="export_btn_poster",
-            use_container_width=True,
-            type="primary" if panel == "poster" else "secondary",
-        ):
-            st.session_state.export_action_panel = None if panel == "poster" else "poster"
-            st.rerun()
-    with col_b:
-        if st.button(
-            "📥 导入菜单口令",
-            key="export_btn_import",
-            use_container_width=True,
-            type="primary" if panel == "import" else "secondary",
-        ):
-            st.session_state.export_action_panel = None if panel == "import" else "import"
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_action_row([
+        ("export_poster", "🖼️", "制作菜单海报", panel == "poster", False),
+        ("export_import", "📥", "导入菜单口令", panel == "import", False),
+    ])
 
     if panel == "import":
         st.markdown('<div class="eb-export-panel">', unsafe_allow_html=True)
@@ -472,6 +428,8 @@ def render() -> None:
         st.session_state.poster_b64_cache = {}
 
     restore_poster_for_display(st.session_state.get("today_date", beijing_today_iso()))
+    today_iso = st.session_state.get("today_date", beijing_today_iso())
+    _apply_export_query_actions(str(st.session_state.get("poster_date_str", today_iso)))
 
     _render_top_actions()
     _render_poster_section()
