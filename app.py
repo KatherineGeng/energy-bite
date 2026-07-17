@@ -6,13 +6,15 @@ from __future__ import annotations
 
 from datetime import date
 
+from pathlib import Path
+
 import streamlit as st
 
 from src.app_time import beijing_today
 from src.constants import APP_VERSION
 from src.database import init_database
 from src.mobile_ui import inject_mobile_css, render_bottom_nav, render_top_header
-from src.pwa_head import inject_pwa_head
+from src.pwa_head import inject_ios_home_screen_fix, inject_pwa_head
 from src.query_nav import apply_query_nav
 from src.session_hydrate import clear_menu_session_state, hydrate_today_state, sync_session_date
 from src.review_nav_state import is_review_chip_navigation, restore_review_picks_from_query
@@ -22,51 +24,16 @@ from src.query_nav import qp_first
 from src.theme import inject_theme_assets
 from src.user_profile import profile_complete, render_onboarding
 
-# 鼠尾草绿底色，白色粗体「简」字的极简 SVG 图标（Data URI，零外链加载）
-icon_svg = (
-    "data:image/svg+xml;utf8,"
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
-    "<rect width='100' height='100' fill='%238DA399'/>"
-    "<text x='50' y='50' font-family='sans-serif' font-size='60' font-weight='bold' "
-    "fill='white' text-anchor='middle' dominant-baseline='central'>%E7%AE%80</text>"
-    "</svg>"
-)
+# iOS 只认 PNG apple-touch-icon；SVG / 外链都会失败或回退到 Streamlit 红标。
+_ICON_PNG = Path(__file__).resolve().parent / "static" / "apple-touch-icon.png"
 st.set_page_config(
     page_title="简愈一人食",
-    page_icon=icon_svg,
+    page_icon=str(_ICON_PNG) if _ICON_PNG.is_file() else "🌿",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
-import streamlit.components.v1 as components
-
-# 强行注入 iOS PWA 标签与清空默认图标（parent document，绕过 Streamlit SPA 延迟）
-components.html(
-    """
-    <script>
-    const parent = window.parent.document;
-
-    // 1. 强制覆盖网页真实标题
-    parent.title = "简愈一人食";
-
-    // 2. 强制写入 iOS 桌面应用名称
-    let titleMeta = parent.querySelector('meta[name="apple-mobile-web-app-title"]');
-    if (!titleMeta) {
-        titleMeta = parent.createElement('meta');
-        titleMeta.name = "apple-mobile-web-app-title";
-        parent.head.appendChild(titleMeta);
-    }
-    titleMeta.content = "简愈一人食";
-
-    // 3. 移除 Streamlit 默认的所有红色图标，逼迫苹果系统重新生成「简」字默认图标
-    const icons = parent.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
-    icons.forEach(icon => icon.remove());
-    </script>
-    """,
-    height=0,
-    width=0,
-)
-
+inject_ios_home_screen_fix()
 init_database()
 inject_pwa_head()
 inject_theme_assets()
