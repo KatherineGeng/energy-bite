@@ -38,6 +38,35 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+import streamlit.components.v1 as components
+
+# 强行注入 iOS PWA 标签与清空默认图标（parent document，绕过 Streamlit SPA 延迟）
+components.html(
+    """
+    <script>
+    const parent = window.parent.document;
+
+    // 1. 强制覆盖网页真实标题
+    parent.title = "简愈一人食";
+
+    // 2. 强制写入 iOS 桌面应用名称
+    let titleMeta = parent.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!titleMeta) {
+        titleMeta = parent.createElement('meta');
+        titleMeta.name = "apple-mobile-web-app-title";
+        parent.head.appendChild(titleMeta);
+    }
+    titleMeta.content = "简愈一人食";
+
+    // 3. 移除 Streamlit 默认的所有红色图标，逼迫苹果系统重新生成「简」字默认图标
+    const icons = parent.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
+    icons.forEach(icon => icon.remove());
+    </script>
+    """,
+    height=0,
+    width=0,
+)
+
 init_database()
 inject_pwa_head()
 inject_theme_assets()
