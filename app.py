@@ -22,9 +22,18 @@ from src.query_nav import qp_first
 from src.theme import inject_theme_assets
 from src.user_profile import profile_complete, render_onboarding
 
+# 鼠尾草绿底色，白色粗体「简」字的极简 SVG 图标（Data URI，零外链加载）
+icon_svg = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+    "<rect width='100' height='100' fill='%238DA399'/>"
+    "<text x='50' y='50' font-family='sans-serif' font-size='60' font-weight='bold' "
+    "fill='white' text-anchor='middle' dominant-baseline='central'>%E7%AE%80</text>"
+    "</svg>"
+)
 st.set_page_config(
-    page_title=f"简愈一人食 {APP_VERSION}",
-    page_icon="🌿",
+    page_title="简愈一人食",
+    page_icon=icon_svg,
     layout="centered",
     initial_sidebar_state="collapsed",
 )

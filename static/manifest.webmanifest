@@ -1,18 +1,6 @@
 {
   "name": "简愈一人食",
   "short_name": "简愈",
-  "icons": [
-    {
-      "src": "/app/static/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
-    {
-      "src": "/app/static/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ],
   "theme_color": "#8DA399",
   "background_color": "#F9F8F6",
   "display": "standalone"
